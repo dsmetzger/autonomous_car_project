@@ -1,21 +1,25 @@
+import thread
+
 global coordinates=[]#holds the waypoints to navigate to.
+global stage=0#the current section of sidewalk the robot is on.
 
 class line_recognition:
 	def __init__(self):
-		#start video feed
-		#attribute of current image, distance to edge of sidewalk, and angle to sidewalk
+		#Begins camera connection
+		#attribute of current image, angle to sidewalk, and position on sidewalk.
 	def get_img(self):
-		#update current image
+		#update current image.
 	def get_lines(self):
-		#continous function that controls the outputs a controlled series of lines in the current image. Possibly uses an input region of interest of the image.
-class Adafruit_GPS:
+		#function that returns a series of lines in the current image. Possibly using an input region of interest of the image.
+class GPS:
 	def __init__(self):
-		#start the connection and get path
+		#start the gps connection
+		#attribute of current gps position, current speed, and estimated direction vector of cumulative gps positions.
 		u = mraa.Uart(0)
 		path=u.getDevicePath()
 		self.f=open(path,'r')
 	def read_data(self,data_str='$GPGGA',iterations=50):
-		#wait for, optional checksum, and return the specified identifier
+		#wait for optional checksum and specified identifier, return data.
 		for i in range(iterations):
 			nmea=self.f.readline()
 			segmented_data=nmea.split(',')
@@ -24,7 +28,7 @@ class Adafruit_GPS:
 			else:
 				return False,i
 	def read_position_data(self,iterations=50):
-		#calls read_data() for the position nmea
+		#calls read_data() for the position nmea, updates stage
 		segmented_data,i=self.read_data('$GPGGA',iterations)
 		#6th position 0=no fix, 1=gps, 2=dgps
 		if segmented_data and segmented_data[6]!=0:
@@ -44,14 +48,16 @@ class Adafruit_GPS:
 
 class car:
 	def __init__(self):
-		#attribute of current gps position, pwm speed, estimated direction vector of cumulative gps positions.
-	def read_data(self,data_str='$GPGGA',iterations=50):
-		#update position, update vector based on certainty of gps.
-	def drive(self):
-		#Pass in line_regocnition object, GPS object, and starting speed.
-		#continous funcion that uses the gps vector attribute, distance to sidewalk, and angle to sidewalk to create movement calculations.
+		#attribute of current current speed.
 	def speed(self):
-		#changes the speed to a specified input.
+		#changes the speed of individual motors to a specified inputs using PWM.
 	def stop(self):
 		#called in emergency if the sensor activates at a close proximity.
 
+
+def __main__()
+	#drive
+		#create line_regocnition object, GPS object, and car object.
+		#continous funcion that uses the gps vector attribute, position on sidewalk, and angle to sidewalk to create movement calculations.
+		#if angle to sidewalk high: turn, elif position on sidewalk != center: adjust position, elif position !=center and angle != paralell: adjust heavily
+		#iterate through images to find signifigant lines and controls the number of output lines.
