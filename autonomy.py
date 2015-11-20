@@ -56,8 +56,10 @@ class car:
 
 
 def __main__()
+	#create line_regocnition object, GPS object, and car object.	
+
 	#drive
-		#create line_regocnition object, GPS object, and car object.
+		
 		#continous funcion that uses the gps vector attribute, position on sidewalk, and angle to sidewalk to create movement calculations.
-		#if angle to sidewalk high: turn, elif position on sidewalk != center: adjust position, elif position !=center and angle != paralell: adjust heavily
+		#if angle to sidewalk high: turn, elif position on sidewalk != center: adjust position, elif position !=center and angle != paralell: determine if traveling angle good, else readjust
 		#iterate through images to find signifigant lines and controls the number of output lines.
