@@ -48,7 +48,7 @@ class car:
 	def read_data(self,data_str='$GPGGA',iterations=50):
 		#update position, update vector based on certainty of gps.
 	def drive(self):
-		#begins moving at the input speed.
+		#Pass in line_regocnition object, GPS object, and starting speed.
 		#continous funcion that uses the gps vector attribute, distance to sidewalk, and angle to sidewalk to create movement calculations.
 	def speed(self):
 		#changes the speed to a specified input.
