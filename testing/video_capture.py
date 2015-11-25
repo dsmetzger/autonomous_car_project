@@ -1,10 +1,10 @@
 import numpy as np
 import cv2
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 # Define the codec and create VideoWriter object
-fps=10.0
+fps=20.0
 out = cv2.VideoWriter('output.avi',4, fps, (640,480))
 i=0
 while(cap.isOpened()):
@@ -15,7 +15,7 @@ while(cap.isOpened()):
         out.write(frame)
 
         cv2.imshow('frame',frame)
-    if i==20:
+    if i==300:
 	break
 
 # Release everything if job is finished
