@@ -3,14 +3,15 @@ import thread
 global coordinates=[]#holds the waypoints to navigate to.
 global stage=0#the current section of sidewalk the robot is on.
 
-class line_recognition:
+class recognition:
 	def __init__(self):
 		#Begins camera connection
-		#attribute of current image, angle to sidewalk, and position on sidewalk.
 	def get_img(self):
 		#update current image.
 	def get_lines(self):
 		#function that returns a series of lines in the current image. Possibly using an input region of interest of the image.
+	def white_det(self):
+		#returns pixel values that match that of the sidewalk.
 class GPS:
 	def __init__(self):
 		#start the gps connection
@@ -56,10 +57,16 @@ class car:
 
 
 def __main__()
-	#create line_regocnition object, GPS object, and car object.	
+	#create regocnition object, GPS object, and car instance.
 
-	#drive
-		
-		#continous funcion that uses the gps vector attribute, position on sidewalk, and angle to sidewalk to create movement calculations.
-		#if angle to sidewalk high: turn, elif position on sidewalk != center: adjust position, elif position !=center and angle != paralell: determine if traveling angle good, else readjust
-		#iterate through images to find signifigant lines and controls the number of output lines.
+	#continous funcion that uses the gps vector attribute, position on sidewalk, and angle to sidewalk to create movement calculations.
+	
+	#if state== straight path	
+		#perform "white detection", based on returned grid values calculate angle to sidewalk and position on sidewalk. 
+		#by changing pwm. if position !=center and sidewalk edge line != paralell to car: adjust angle, if position on sidewalk != center: adjust angle, elif angle to sidewalk high: adjust angle.
+	#elif state== turn
+		#perform "white detection"
+		#the state should map to the turn direction. determine if a turn is present then find best route.
+	#elif state== obstacle
+		#perform "white detection"
+		#find path around object
