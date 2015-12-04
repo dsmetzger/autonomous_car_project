@@ -15,7 +15,7 @@ def checksum(data):
 	else:
 		return True
 
-class Adafruit_GPS:
+class GPS:
 	def __init__(self):
 		#start the connection and get path
 		u = mraa.Uart(0)
@@ -36,7 +36,9 @@ class Adafruit_GPS:
 		#6th position 0=no fix, 1=gps, 2=dgps
 		if segmented_data and segmented_data[6]!=0:
 			#return lat, lon
-			return segmented_data[2:6]
+			#return segmented_data[2:6]
+			#return full data
+			return segmented_data
 		else:
 			return self.read_position_data((iterations-i-1))
 	def read_utc_data(self,iterations=50):
@@ -50,6 +52,6 @@ class Adafruit_GPS:
 		#I thought I read you can change certain nmea outputs but havnt played around with it yet.
 
 if __name__ == "__main__":
-	gps_conn=Adafruit_GPS()
+	gps_conn=GPS()
 	x=gps_conn.read_position_data()
 	print x
