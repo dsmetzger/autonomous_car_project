@@ -1,7 +1,8 @@
 import thread
 
-global coordinates=[]#holds the waypoints to navigate to.
-global stage=0#the current section of sidewalk the robot is on.
+global coordinates=[]#holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
+global state="drive"#the current state of the robot.
+global stage=0#which sidewalk is the robot on.
 
 class recognition:
 	def __init__(self):
@@ -60,13 +61,15 @@ def __main__()
 	#create regocnition object, GPS object, and car instance.
 
 	#continous funcion that uses the gps vector attribute, position on sidewalk, and angle to sidewalk to create movement calculations.
-	
-	#if state== straight path	
-		#perform "white detection", based on returned grid values calculate angle to sidewalk and position on sidewalk. 
-		#by changing pwm. if position !=center and sidewalk edge line != paralell to car: adjust angle, if position on sidewalk != center: adjust angle, elif angle to sidewalk high: adjust angle.
-	#elif state== turn
-		#perform "white detection"
-		#the state should map to the turn direction. determine if a turn is present then find best route.
-	#elif state== obstacle
-		#perform "white detection"
-		#find path around object
+	while True:
+		#use gps to determine if turn is coming up
+		#possibly use eigenvectors to determine stage
+		#check sonar
+		#stage will be constant at 0 for now
+		if stage==0:
+			if state=='drive':
+				pass
+			elif state=='turn':
+				pass
+			elif state=='ob_det':
+				pass
