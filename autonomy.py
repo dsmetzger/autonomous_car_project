@@ -6,7 +6,7 @@ import time
 
 global coordinates=[]#holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
 global state="drive"#the current state of the robot.
-global stage=0#which section of sidewalk the robot is on. This will be the second phase of the project.
+global stage=0#which section of sidewalk the robot is on. To compenstate for changes in environment.
 
 class recognition:
 	def __init__(self):
@@ -78,7 +78,7 @@ class GPS:
 
 class car:
 	def __init__(self):
-		#attribute of current current speed.
+		#attribute of current speed.
 	def speed(self):
 		#changes the speed of individual motors to a specified inputs using PWM.
 	def stop(self):
@@ -96,10 +96,11 @@ def __main__()
 		#stage will be constant at 0 for now
 		if stage==0:
 			if state=='drive':
-				#control system to keep vehicle close to right side of sidewalk.				
+				#control system to keep vehicle close to right side of sidewalk.		
+				pass	
 			elif state=='turn':
 				#keep moving until the edge of the camera detects white
 				#when detected, turn in a constant circle until the edge of the side walk is detected within a specified distance. orientate and drive.
 				pass
-			elif state=='ob_det':
+			elif state=='ob_det':				
 				pass
