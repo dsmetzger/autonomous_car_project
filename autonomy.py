@@ -87,20 +87,25 @@ class car:
 
 def __main__()
 	#create regocnition object, GPS object, and car instance.
-
+	rec=recognition()
+	
 	#continous funcion that uses the gps vector attributes and a camera to stay on sidewalk.
+	#possibly run gps in a thread.
 	while True:
-		#use gps to determine if turn is coming up.
+		#perform white detection
+		rec.get_img()
+		l1=rec.wh_det()
+		#use gps to determine. 
 		#possibly use eigenvectors or some other vector algorithim to determine stage.
 		#check sonar.
-		#stage will be constant at 0 for now
+		#stage will be constant at 0 for now.
 		if stage==0:
 			if state=='drive':
 				#control system to keep vehicle close to right side of sidewalk.		
-				pass	
+				pass
 			elif state=='turn':
-				#keep moving until the edge of the camera detects white
+				#keep moving until the edge of the camera detects white.
 				#when detected, turn in a constant circle until the edge of the side walk is detected within a specified distance. orientate and drive.
 				pass
-			elif state=='ob_det':				
+			elif state=='ob_det':
 				pass
