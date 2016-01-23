@@ -101,7 +101,7 @@ def __main__()
 		#stage will be constant at 0 for now.
 		if stage==0:
 			if state=='drive':
-				#control system to keep vehicle close to right side of sidewalk.		
+				#check if the path ends for the robot in a specified distance while keeping the robot to right side of sidewalk. the returned array should have a specified minimum value.
 				pass
 			elif state=='turn':
 				#keep moving until the edge of the camera detects white.
