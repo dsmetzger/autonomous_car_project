@@ -10,9 +10,9 @@ def __main__():
 	UART.setup("UART1")
 	UART.setup("UART2")
 	UART.setup("UART3")
-	GPS1 = serial.Serial('/dev/ttyO1', 9600)
-	GPS2 = serial.Serial('/dev/ttyO2', 9600)
-	GPS3 = serial.Serial('/dev/ttyO3', 9600)
+	GPS1 = serial.Serial('/dev/ttyO1', 4800)
+	GPS2 = serial.Serial('/dev/ttyO2', 4800)
+	GPS3 = serial.Serial('/dev/ttyO3', 4800)
 	while(1):
 		if GPS1.inWaiting() ==0:
 			parse(NMEA1=GPS1.readline())	 
