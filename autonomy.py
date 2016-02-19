@@ -85,7 +85,7 @@ class car:
 		#called in emergency if the sensor activates at a close proximity.
 
 
-def __main__()
+if __name__ == "__main__":
 	#create regocnition object, GPS object, and car instance.
 	rec=recognition()
 	
