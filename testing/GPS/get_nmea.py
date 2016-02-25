@@ -17,7 +17,7 @@ def __main__():
 	while(1):
 		if GPS1.inWaiting() ==1:
 			parse(GPS1.readline(),1)	 
-		#if GPS4.inWaiting() ==1:
-		#	parse(GPS4.readline(),4)
+		if GPS4.inWaiting() ==1:
+			parse(GPS4.readline(),4)
 
 __main__()
