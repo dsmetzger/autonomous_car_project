@@ -6,7 +6,11 @@ import time
 
 global coordinates=[]#holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
 global state="drive"#the current state of the robot.
-global stage=0#which section of sidewalk the robot is on. To compenstate for changes in environment.
+global stage=0#which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+global gps_read_flag=0#set to 0 while its being written to
+global gps_position
+
+global debug_mode=1#more print statements and saving of pictures may result.
 
 class recognition:
 	def __init__(self):
@@ -41,41 +45,6 @@ class recognition:
 		return l1
                     
 
-class GPS:
-	def __init__(self):
-		#start the gps connection
-		#attribute of current gps position, current speed, and estimated direction vector of cumulative gps positions.
-		u = mraa.Uart(0)
-		path=u.getDevicePath()
-.		self.f=open(path,'r')
-	def read_data(self,data_str='$GPGGA',iterations=50):
-		#wait for optional checksum and specified identifier, return data.
-		for i in range(iterations):
-			nmea=self.f.readline()
-			segmented_data=nmea.split(',')
-			if segmented_data[0]==data_str: #and checksum(data):
-				return segmented_data,i
-			else:
-				return False,i
-	def read_position_data(self,iterations=50):
-		#calls read_data() for the position nmea, updates stage
-		segmented_data,i=self.read_data('$GPGGA',iterations)
-		#6th position 0=no fix, 1=gps, 2=dgps
-		if segmented_data and segmented_data[6]!=0:
-			#return lat, lon
-			return segmented_data[2:6]
-		else:
-			return self.read_position_data((iterations-i-1))
-	def read_utc_data(self,iterations=50):
-		#calls read_data() for the utc nmea
-		data=self.read_data('$GPZDA',iterations)
-		segmented_data=data.split(',')
-		print segmented_data
-		return segmented_data
-	def write_commands(self):
-		pass
-		#I thought I read you can change certain nmea outputs but havnt played around with it yet.
-
 class car:
 	def __init__(self):
 		#attribute of current speed.
@@ -86,26 +55,31 @@ class car:
 
 
 if __name__ == "__main__":
-	#create regocnition object, GPS object, and car instance.
+	#create regocnition, GPS, and car instance.
 	rec=recognition()
 	
-	#continous funcion that uses the gps vector attributes and a camera to stay on sidewalk.
-	#possibly run gps in a thread.
+	#Thread gps
 	while True:
 		#perform white detection
 		rec.get_img()
 		l1=rec.wh_det()
-		#use gps to determine. 
-		#possibly use eigenvectors or some other vector algorithim to determine stage.
+		#possibly use eigenvectors or some other vector algorithim to determine stage and state based on gps_position.
 		#check sonar.
-		#stage will be constant at 0 for now.
-		if stage==0:
-			if state=='drive':
-				#check if the path ends for the robot in a specified distance while keeping the robot to right side of sidewalk. the returned array should have a specified minimum value.
+		
+		if state=='drive':
+			if stage==0 or stage==1 or stage==2:
+			#follow compass while checking if path edges are too close.
+			#if too close turn away from edge
+			pass
+		elif state=='turn':
+			if stage==0:
+				#the first turn is circular. choose a starting distance from edge of sidewalk.
+				#use picture region of interest around the edge of the sidewalk and PID control. The camera will update quick enough for stability.
+				#if edge of sidewalk is lst use compass to turn towards exit of turn(direction of sidewalk paralell to art building). 
 				pass
-			elif state=='turn':
+			if stage==2:
 				#keep moving until the edge of the camera detects white.
 				#when detected, turn in a constant circle until the edge of the side walk is detected within a specified distance. orientate and drive.
 				pass
-			elif state=='ob_det':
-				pass
+		elif state=='ob_det':
+			pass
