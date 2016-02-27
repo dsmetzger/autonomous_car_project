@@ -21,7 +21,8 @@ def get_direction():
 		y1=bus.readU8(7)
 		y2=bus.readU8(8)
 		#to binary
-		
+		x1_conc_x2 = bin ((x1<<8)| x2)
+		y1_conc_y2 = bin ((y1<<8)| y2)
 		#concatenate
 		
 		#2's complement
