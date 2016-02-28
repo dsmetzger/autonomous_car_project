@@ -4,13 +4,19 @@ import numpy as np
 import time
 
 
-global coordinates=[]#holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
-global state="drive"#the current state of the robot.
-global stage=0#which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
-global gps_read_flag=0#set to 0 while its being written to
-global gps_position
+global coordinates=[]  #holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
 
-global debug_mode=1#more print statements and saving of pictures may result.
+global state="drive"  #the current state of the robot.
+global stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+
+global gps_read_flag=0  #set to 0 while its being written to in the thread
+global gps_position=[0,0]  #lat,lon
+
+global control_system_reset=0  #if behavior changes the control systems must be reset.
+
+global debug_mode=1  #more print statements and saving of pictures may result.
+
+global object_detect=0 #thread the sonar
 
 class recognition:
 	def __init__(self):
@@ -60,16 +66,17 @@ if __name__ == "__main__":
 	
 	#Thread gps
 	while True:
-		#perform white detection
-		rec.get_img()
-		l1=rec.wh_det()
-		#possibly use eigenvectors or some other vector algorithim to determine stage and state based on gps_position.
-		#check sonar.
-		
 		if state=='drive':
 			if stage==0 or stage==1 or stage==2:
-			#follow compass while checking if path edges are too close.
-			#if too close turn away from edge
+				#follow compass while checking if path edges are too close.
+				while True:
+					#perform white detection
+					rec.get_img()
+					l1=rec.wh_det()
+					#check sonar. if true change behavior and break
+					#check gps for change to turn state
+					#if too close turn away from edge
+					
 			pass
 		elif state=='turn':
 			if stage==0:
@@ -77,9 +84,12 @@ if __name__ == "__main__":
 				#use picture region of interest around the edge of the sidewalk and PID control. The camera will update quick enough for stability.
 				#if edge of sidewalk is lst use compass to turn towards exit of turn(direction of sidewalk paralell to art building). 
 				pass
+			if stage==1:
+				#travel paralell to art building. stop when close to sidewalk, follow sidewalk then look for turn left into forested area
+				pass
 			if stage==2:
 				#keep moving until the edge of the camera detects white.
-				#when detected, turn in a constant circle until the edge of the side walk is detected within a specified distance. orientate and drive.
+				#when detected, turn in a constant circle(radius of about .6 m) until the edge of the side walk is detected within a specified distance. orientate and drive.
 				pass
 		elif state=='ob_det':
 			pass
