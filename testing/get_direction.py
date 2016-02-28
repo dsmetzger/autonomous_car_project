@@ -7,12 +7,18 @@ def get_direction():
 	#read adress 0x3D
 	bus = Adafruit_I2C(address=0x1E)
 	#check if dready is high
+	#x1=bus.write8(self, 2, 0)
 	if GPIO.input("P8_10"):
+		#x1=bus.write8(self, 2, 0)
+
 		#register address(in hex)
 		#03 msb of x
 		#04 lsb
 		#07 msb of y
 		#08 lsb
+		print bus.readU8(0)
+		print bus.readU8(1)
+		print bus.readU8(2)
 		print bus.readU8(9)
 		x1=bus.readU8(3)
 		x2=bus.readU8(4)
