@@ -110,8 +110,8 @@ if __name__ == "__main__":
 			if stage==0 or stage==1 or stage==2:
 				#follow compass while checking if path edges are too close.
 				it=0
+				start = time.time()
 				while True:
-					start = time.time()
 					#perform white detection
 					rec.get_img()
 					l1=rec.wh_det(x1=10,x2=630,y1=470,y2=0,debug=1)
