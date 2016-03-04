@@ -2,26 +2,24 @@ import thread
 import cv2
 import numpy as np
 import time
+import Adafruit_BBIO.PWM as PWM
 
+coordinates=[]  #holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
 
-global coordinates=[]  #holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
+state="drive"  #the current state of the robot.
+stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
-global state="drive"  #the current state of the robot.
-global stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+gps_read_flag=0  #set to 0 while its being written to in the thread
+gps_position=[0,0]  #lat,lon
 
-global gps_read_flag=0  #set to 0 while its being written to in the thread
-global gps_position=[0,0]  #lat,lon
+debug_mode=1  #more print statements and saving of pictures may result.
 
-global control_system_reset=0  #if behavior changes the control systems must be reset.
-
-global debug_mode=1  #more print statements and saving of pictures may result.
-
-global object_detect=0 #thread the sonar
+object_detect=0 #thread the sonar
 
 class recognition:
 	def __init__(self):
 		#Begins camera connection
-		self.cap = cv2.VideoCapture(1)
+		self.cap = cv2.VideoCapture(0)
 	def get_img(self):
 		#update current image.
 		while 1:
@@ -32,52 +30,111 @@ class recognition:
 	def get_lines(self):
 		#function that returns a series of lines in the current image. Possibly using an input region of interest of the image.
 		pass
-	def wh_det(img,x1=10,x2=640,y1=470,y2=0,xit=10,yit=-10):
-		tot=0;
-		l1=[]
+	def wh_det(self,x1=10,x2=630,y1=470,y2=0,xit=10,yit=-10,slope_en=0,er_max=4,debug=0):    
+		#create green pointers on sidewalk
+		count=[]
+		tot=0
 		for x in range(x1,x2,xit):
-			test=3#used to ignore noise in the image. if the values goes too low the system stops incrementing in that y direction
+			test=er_max#used to ignore noise in the image. if the values goes too low the system stops incrementing in that y direction
 			for y in range(y1,y2,yit):
 				bgr=self.img[y,x]
-				if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):#works
+				if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
-					if test<3:
-						test+=1
-					else:
-						test-=1
-					if test<2:
+					if test<er_max:
+		            			test+=1
+				else:
+					test-=1
+					#draw where true
+					if test<1:
+						for xn in range(-1,2):
+							for yn in range(-1,2):
+								self.img[y+yn,x+xn]=[0,200,255]
 						break
-			l1.append(ytot)
+			count.append(tot)
+			tot=0
+		#calculate slope,
+		if slope_en==1:
+			slopes=[]
+		    	c1=yit/xit
+		    	points=6#even multiple of len(count). number of points to evaluate in one loop
+			for x1 in range(0,len(count),points):
+				ydiff=[]
+				for y1 in range(0,points-1):
+					ydiff.append((count[x1+y1]-count[x1+y1+1])*c1)
+				ysum=0
+				#print y1+x1+1
+				for y in ydiff:
+					ysum=y+ysum
+				slopes.append(float(ysum)/len(ydiff))
+		if debug=1:
+			cv2.imwrite('debug_image', self.img)		
 		return l1
+	
                     
 
 class car:
 	def __init__(self):
 		#attribute of current speed.
-	def speed(self):
-		#changes the speed of individual motors to a specified inputs using PWM.
-	def stop(self):
-		#called in emergency if the sensor activates at a close proximity.
+		# Right side motors. Pin definitions for H-bridge control
+		self.right_wheel = "P9_14"  # controls speed of right front motor via PWM
+		self.right_wheel_dir = "P9_12"   # combine M1 pins on upper and lower motor controllers into a single pin
+		# Left side motors. Pin definitions for H-bridge control
+		self.left_wheel = "P9_16"  # controls speed of left front motor via PWM
+		self.left_wheel_dir = "P8_11"  # combine M2 pins on upper and lower motor controllers into a single pin
+		# set pin directions as output
+		GPIO.setup(self.right_wheel, GPIO.OUT)
+		GPIO.setup(self.right_wheel_dir, GPIO.OUT)
+		GPIO.setup(self.left_wheel, GPIO.OUT)
+		GPIO.setup(self.left_wheel_dir, GPIO.OUT)
 
+		PWM.start(self.left_wheel, 0)
+		PWM.start(self.right_wheel, 0)
+	def speed(self, duty=40, offset=0):
+		#changes the speed of individual motors to a specified inputs using PWM.
+		PWM.set_duty_cycle(self.left_wheel, 40+offset)
+		PWM.set_duty_cycle(self.right_wheel, 40-offset)
+	def stop(self):
+		PWM.stop(self.right_wheel)
+		PWM.stop(self.left_wheel)
+		PWM.cleanup()
 
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
 	rec=recognition()
+	car1=car()
 	
-	#Thread gps
+	#Thread gps sonar and compass
+	time.sleep(5)
 	while True:
 		if state=='drive':
 			if stage==0 or stage==1 or stage==2:
 				#follow compass while checking if path edges are too close.
+				it=0
 				while True:
+					start = time.time()
 					#perform white detection
 					rec.get_img()
-					l1=rec.wh_det()
+					l1=rec.wh_det(x1=10,x2=630,y1=470,y2=0,debug=1)
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
 					#if too close turn away from edge
 					
-			pass
+					#first algorithim, follow most pixels
+					sum1=0
+					sum2=0
+					for x in range(0, len(l1)):
+						if x<len(l1)/2:
+							sum1+=l1(x)
+						else:
+							sum2+=l1(x)
+					offset=10*(.5-sum1/(sum1+sum2))#gain times error
+					car1.speed(40, offset)
+					it+=1
+					end=time.time()
+					if end-start>10:
+						car1.stop()
+						print 'stage '+stage+' performed at '+(it/(end-start))+' hertz'
+						break
 		elif state=='turn':
 			if stage==0:
 				#the first turn is circular. choose a starting distance from edge of sidewalk.

@@ -9,7 +9,7 @@ def get_direction():
 	#check if dready is high
 	#x1=bus.write8(self, 2, 0)
 	if GPIO.input("P8_10"):
-		#x1=bus.write8(self, 2, 0)
+		#x1=bus.write8(2, 0)
 
 		#register address(in hex)
 		#03 msb of x
@@ -27,8 +27,8 @@ def get_direction():
 		y1=bus.readU8(7)
 		y2=bus.readU8(8)
 		#to binary
-		x1_conc_x2 = bin ((x1<<8)| x2)
-		y1_conc_y2 = bin ((y1<<8)| y2)
+		#x1_conc_x2 = bin ((x1<<8)| x2)
+		#y1_conc_y2 = bin ((y1<<8)| y2)
 		#concatenate
 		
 		#2's complement
