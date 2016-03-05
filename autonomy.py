@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import time
 import Adafruit_BBIO.PWM as PWM
+import Adafruit_BBIO.GPIO as GPIO
 
 coordinates=[]  #holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
 
@@ -30,7 +31,7 @@ class recognition:
 	def get_lines(self):
 		#function that returns a series of lines in the current image. Possibly using an input region of interest of the image.
 		pass
-	def wh_det(self,x1=10,x2=630,y1=470,y2=0,xit=10,yit=-10,slope_en=0,er_max=4,debug=0):    
+	def wh_det(self,x1=10,x2=630,y1=470,y2=10,xit=10,yit=-10,slope_en=0,er_max=4,debug=0):    
 		#create green pointers on sidewalk
 		count=[]
 		tot=0
@@ -63,12 +64,12 @@ class recognition:
 					ydiff.append((count[x1+y1]-count[x1+y1+1])*c1)
 				ysum=0
 				#print y1+x1+1
-				for y in ydiff:
-					ysum=y+ysum
+				for y2 in ydiff:
+					ysum=y2+ysum
 				slopes.append(float(ysum)/len(ydiff))
-		if debug=1:
-			cv2.imwrite('debug_image', self.img)		
-		return l1
+		if debug==1:
+			print counts		
+		return count
 	
                     
 
@@ -89,10 +90,13 @@ class car:
 
 		PWM.start(self.left_wheel, 0)
 		PWM.start(self.right_wheel, 0)
-	def speed(self, duty=40, offset=0):
+	def forward(self):
+		GPIO.output(self.right_wheel_dir, GPIO.HIGH)
+		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
+	def speed(self, duty=45, offset=0):
 		#changes the speed of individual motors to a specified inputs using PWM.
-		PWM.set_duty_cycle(self.left_wheel, 40+offset)
-		PWM.set_duty_cycle(self.right_wheel, 40-offset)
+		PWM.set_duty_cycle(self.left_wheel, duty+offset)
+		PWM.set_duty_cycle(self.right_wheel, duty-offset)
 	def stop(self):
 		PWM.stop(self.right_wheel)
 		PWM.stop(self.left_wheel)
@@ -104,17 +108,18 @@ if __name__ == "__main__":
 	car1=car()
 	
 	#Thread gps sonar and compass
-	time.sleep(5)
+	time.sleep(3)
 	while True:
 		if state=='drive':
 			if stage==0 or stage==1 or stage==2:
 				#follow compass while checking if path edges are too close.
 				it=0
 				start = time.time()
+				car1.forward()
 				while True:
 					#perform white detection
 					rec.get_img()
-					l1=rec.wh_det(x1=10,x2=630,y1=470,y2=0,debug=1)
+					l1=rec.wh_det(x1=10,x2=310,y1=235,y2=100,xit=5, yit=5, debug=1)
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
 					#if too close turn away from edge
@@ -124,17 +129,20 @@ if __name__ == "__main__":
 					sum2=0
 					for x in range(0, len(l1)):
 						if x<len(l1)/2:
-							sum1+=l1(x)
+							sum1+=l1[x]
 						else:
-							sum2+=l1(x)
-					offset=10*(.5-sum1/(sum1+sum2))#gain times error
-					car1.speed(40, offset)
+							sum2+=l1[x]
+					offset=30*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
+					print 'left'+str(sum1)
+					print 'right'+str(sum2)
+					print 'offset'+str(offset)
+					car1.speed(55, offset)
 					it+=1
 					end=time.time()
-					if end-start>10:
+					if end-start>20:
 						car1.stop()
-						print 'stage '+stage+' performed at '+(it/(end-start))+' hertz'
-						break
+						print 'stage '+str(stage)+' performed at '+str(it/(end-start))+' hertz'
+						exit()
 		elif state=='turn':
 			if stage==0:
 				#the first turn is circular. choose a starting distance from edge of sidewalk.
