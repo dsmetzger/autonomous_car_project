@@ -93,7 +93,7 @@ class car:
 	def forward(self):
 		GPIO.output(self.right_wheel_dir, GPIO.HIGH)
 		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
-	def speed(self, duty=45, offset=0):
+	def speed(self, duty=60, offset=0):
 		#changes the speed of individual motors to a specified inputs using PWM.
 		PWM.set_duty_cycle(self.left_wheel, duty+offset)
 		PWM.set_duty_cycle(self.right_wheel, duty-offset)
@@ -132,11 +132,11 @@ if __name__ == "__main__":
 							sum1+=l1[x]
 						else:
 							sum2+=l1[x]
-					offset=30*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
+					offset=40*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
 					print 'left'+str(sum1)
 					print 'right'+str(sum2)
 					print 'offset'+str(offset)
-					car1.speed(55, offset)
+					car1.speed(60, offset)
 					it+=1
 					end=time.time()
 					if end-start>20:
