@@ -47,30 +47,22 @@ class recognition:
 					test-=1
 					#draw where true
 					if test<1:
-						for xn in range(-1,2):
-							for yn in range(-1,2):
-								self.img[y+yn,x+xn]=[0,200,255]
+						if debug=='1':
+							for xn in range(-2,3):
+								for yn in range(-2,3):
+									self.img[y+yn,x+xn]=[0,200,255]
 						break
 			count.append(tot)
 			tot=0
 		#calculate slope,
+		if debug==1:
+			print count		
 		if slope_en==1:
 			slopes=[]
-		    	c1=yit/xit
-		    	points=6#even multiple of len(count). number of points to evaluate in one loop
-			for x1 in range(0,len(count),points):
-				ydiff=[]
-				for y1 in range(0,points-1):
-					ydiff.append((count[x1+y1]-count[x1+y1+1])*c1)
-				ysum=0
-				#print y1+x1+1
-				for y2 in ydiff:
-					ysum=y2+ysum
-				slopes.append(float(ysum)/len(ydiff))
-		if debug==1:
-			print counts		
-		return count
-	
+			for x1 in range(0,len(count)-1):
+			    slopes.append(float(count[x1]-count[x1+1])*c1)   
+			return count,slopes
+				
                     
 
 class car:
@@ -102,6 +94,51 @@ class car:
 		PWM.stop(self.left_wheel)
 		PWM.cleanup()
 
+def follow_most_pixels(gain,l1):
+	#first algorithim, follow most pixels
+	sum1=0
+	sum2=0
+	for x in range(0, len(l1)):
+		if x<len(l1)/2:
+			sum1+=l1[x]
+		else:
+			sum2+=l1[x]
+	offset=gain*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
+	print 'left'+str(sum1)
+	print 'right'+str(sum2)
+	print 'offset'+str(offset)
+	return offset
+def control_distance(slopes,xit,yit,gain,l1,side=1,dist=40):#side=1, right of sidewalk
+	if side==1:
+		#find sidewalk edge
+		zeroend=len(l1)
+		for x in range(len(l1)/2, len(l1)):
+			if l1[x]==0:
+				zeroend=x
+				break
+		#offset from slope, positive for turn right
+		it=0
+		tot=0
+		for x in range(zeroend-5, zeroend-1):
+			if slopes[x]!=0:
+				tot+=slopes[x]
+				it+=1
+		if it==0:
+			return 20
+		slope=tot/it
+		b=l1[xzeroend]*yit-slope*zeroend*xit
+		print 'distance to sidewalk, '+str(dist_to_sw)+' pixels'
+		dist_to_sw=(-b)/slope
+		offset=gain*(dist_to_sw-dist)
+		if offset>20:
+			return 20
+		elif offset<-20:
+			return -20
+		else:
+			return offset
+	else
+		pass
+
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
 	rec=recognition()
@@ -119,25 +156,20 @@ if __name__ == "__main__":
 				while True:
 					#perform white detection
 					rec.get_img()
-					l1=rec.wh_det(x1=10,x2=310,y1=235,y2=100,xit=5, yit=5, debug=1)
+					xit=5
+					yit=-5
+					l1=rec.wh_det(img,x1=0,x2=320,y1=230,y2=40,xit=xit, yit=yit,er_max=5)
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
 					#if too close turn away from edge
 					
-					#first algorithim, follow most pixels
-					sum1=0
-					sum2=0
-					for x in range(0, len(l1)):
-						if x<len(l1)/2:
-							sum1+=l1[x]
-						else:
-							sum2+=l1[x]
-					offset=40*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
-					print 'left'+str(sum1)
-					print 'right'+str(sum2)
-					print 'offset'+str(offset)
+					#offset=follow_most_pixels(40,l1)
+					offset=control_distance(xit,yit,40,l1,1)					
 					car1.speed(60, offset)
+					
 					it+=1
+					if debug_mode==1:
+						cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
 					end=time.time()
 					if end-start>20:
 						car1.stop()

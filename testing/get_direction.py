@@ -14,16 +14,23 @@ def get_direction():
 	bus = Adafruit_I2C(address=0x1E)
 	#check if dready is high
 	if GPIO.input("P8_10"):
-		#x1=bus.write8(2, 0)
+		x1=bus.readU8(3)
+		x2=bus.readU8(4)
+		mode=bus.readU8(2)
+		if bus.readU8(2)!=0:
+			print mode
+			x1=bus.write8(2, 0)
 		#register address (in hex)
 		#03 msb of x
 		#04 lsb
 		#07 msb of y
 		#08 lsb
-		print bus.readU8(0)
-		print bus.readU8(1)
-		print bus.readU8(2)
-		print bus.readU8(9)
+		
+		#print bus.readU8(0)
+		#print bus.readU8(1)
+		#print bus.readU8(2)
+		#print bus.readU8(9)
+		
 		x1=bus.readU8(3)
 		x2=bus.readU8(4)
 		z1=bus.readU8(5)
@@ -31,8 +38,8 @@ def get_direction():
 		y1=bus.readU8(7)
 		y2=bus.readU8(8)
 		#to binary
-		x1_conc_x2 = (bin(x1)<<8)| bin(x2)
-		y1_conc_y2 = (bin(y1)<<8)| bin(y2)
+		x1_conc_x2 = (x1<<8)| (x2)
+		y1_conc_y2 = y1<<8| (y2)
 		#concatenate
 		
 		#2's complement
