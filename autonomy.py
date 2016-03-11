@@ -183,6 +183,7 @@ if __name__ == "__main__":
 				start = time.time()
 				car1.forward()
 				I=0#form of integration
+				Ideg=0#a integrator that loses value over time
 				while True:
 					print '------iteration '+str(it)+' ---------'
 					#perform white detection
@@ -190,9 +191,12 @@ if __name__ == "__main__":
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
 					P=follow_most_pixels(gain=60,xit=10,yit=-10)
-					offset=I+P
+					offset=I+P+Ideg
 					I=I+P#new I
+					Ideg=.5*Ideg+P
 					print 'P ',P
+					print 'I ',I
+					print 'Ideg ',Ideg
 					#offset=control_distance(5,-5,gain=1,dist=40)
 					print 'offset ',offset
 					
