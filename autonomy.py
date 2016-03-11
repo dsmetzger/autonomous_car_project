@@ -40,7 +40,8 @@ class recognition:
 			test=er_max#used to ignore noise in the image. if the values goes too low the system stops incrementing in that y direction
 			for y in range(y1,y2,yit):
 				bgr=self.img[y,x]
-				if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				if abs(int(bgr[1])-int(bgr[2]))<10 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
+				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
 		            			test+=1
@@ -48,7 +49,6 @@ class recognition:
 					test-=1
 					#draw where true
 					if test<1:
-						self.img[y,x]=[0,200,255]
 						break
 			count.append(tot)
 			tot=0
@@ -104,14 +104,20 @@ class car:
 			PWM.set_duty_cycle(self.right_wheel, duty)
 	def speed1(self, duty=60, offset=0):
 		#changes the speed of individual motors to a specified inputs using PWM.
-		PWM.set_duty_cycle(self.left_wheel, duty+offset)
-		PWM.set_duty_cycle(self.right_wheel, duty-offset)	
+		if offset>20:
+			x=20
+		elif offset<-20:
+			x=-20
+		else
+			x=offset		
+		PWM.set_duty_cycle(self.left_wheel, duty+x)
+		PWM.set_duty_cycle(self.right_wheel, duty-x)	
 	def stop(self):
 		PWM.stop(self.right_wheel)
 		PWM.stop(self.left_wheel)
 		PWM.cleanup()
 def follow_most_pixels(gain,xit,yit):
-	l1=rec.wh_det(x1=0,x2=320,y1=220,y2=60,xit=xit, yit=yit,er_max=3,slope_en=0)
+	l1=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=2,slope_en=0)
 	print l1
 	#first algorithim, follow most pixels
 	sum1=0
@@ -125,7 +131,7 @@ def follow_most_pixels(gain,xit,yit):
 	#offset=gain*float(sum2-sum1)
 	return offset
 def control_distance(xit,yit,gain,side=1,dist=40):#side=1, right of sidewalk
-	l1,slopes=rec.wh_det(x1=0,x2=320,y1=235,y2=35,xit=xit, yit=yit,er_max=3,slope_en=1)
+	l1,slopes=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=3,slope_en=1)
 	print l1,slopes
 	if side==1:
 		#find sidewalk edge
@@ -181,15 +187,11 @@ if __name__ == "__main__":
 					print '------iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
-					xit=5
-					yit=-5
-					print 'xit,yit'
-					print xit,yit
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
-					P=follow_most_pixels(gain=60,xit=5,yit=-5)
-					offset=.9*I+P
-					I=I*.9+P#new I
+					P=follow_most_pixels(gain=60,xit=10,yit=-10)
+					offset=I+P
+					I=I+P#new I
 					print 'P ',P
 					#offset=control_distance(5,-5,gain=1,dist=40)
 					print 'offset ',offset
