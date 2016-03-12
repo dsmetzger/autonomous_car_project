@@ -40,7 +40,7 @@ class recognition:
 			test=er_max#used to ignore noise in the image. if the values goes too low the system stops incrementing in that y direction
 			for y in range(y1,y2,yit):
 				bgr=self.img[y,x]
-				if abs(int(bgr[1])-int(bgr[2]))<10 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
+				if abs(int(bgr[1])-int(bgr[2]))<14 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
 				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
@@ -108,7 +108,7 @@ class car:
 			x=20
 		elif offset<-20:
 			x=-20
-		else
+		else:
 			x=offset		
 		PWM.set_duty_cycle(self.left_wheel, duty+x)
 		PWM.set_duty_cycle(self.right_wheel, duty-x)	
@@ -127,6 +127,8 @@ def follow_most_pixels(gain,xit,yit):
 			sum1+=l1[x]	
 		else:
 			sum2+=l1[x]
+	print 'sum1 ',sum1
+	print 'sum2 ',sum2
 	offset=gain*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
 	#offset=gain*float(sum2-sum1)
 	return offset
@@ -182,7 +184,6 @@ if __name__ == "__main__":
 				it=0
 				start = time.time()
 				car1.forward()
-				I=0#form of integration
 				Ideg=0#a integrator that loses value over time
 				while True:
 					print '------iteration '+str(it)+' ---------'
@@ -191,16 +192,16 @@ if __name__ == "__main__":
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
 					P=follow_most_pixels(gain=60,xit=10,yit=-10)
-					offset=I+P+Ideg
-					I=I+P#new I
-					Ideg=.5*Ideg+P
+					offset=P+Ideg
 					print 'P ',P
 					print 'I ',I
 					print 'Ideg ',Ideg
+					#update Ideg
+					Ideg=.8*Ideg+.2*P
 					#offset=control_distance(5,-5,gain=1,dist=40)
 					print 'offset ',offset
 					
-					car1.speed(60, offset)
+					car1.speed1(60, -offset)
 					it+=1
 					#if debug_mode==1:
 					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)

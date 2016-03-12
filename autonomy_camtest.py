@@ -30,7 +30,7 @@ class recognition:
 	def get_lines(self):
 		#function that returns a series of lines in the current image. Possibly using an input region of interest of the image.
 		pass
-	def wh_det(self,x1=10,x2=630,y1=470,y2=10,xit=10,yit=-10,slope_en=0,er_max=4,debug=0):    
+	def wh_det(self,x1=0,x2=640,y1=470,y2=10,xit=10,yit=-10,slope_en=0,er_max=4,debug=0):    
 		#create green pointers on sidewalk
 		count=[]
 		tot=0
@@ -38,7 +38,8 @@ class recognition:
 			test=er_max#used to ignore noise in the image. if the values goes too low the system stops incrementing in that y direction
 			for y in range(y1,y2,yit):
 				bgr=self.img[y,x]
-				if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				if abs(int(bgr[1])-int(bgr[2]))<10 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
+				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
 		            			test+=1
@@ -46,7 +47,6 @@ class recognition:
 					test-=1
 					#draw where true
 					if test<1:
-						self.img[y,x]=[0,200,255]
 						break
 			count.append(tot)
 			tot=0
@@ -58,34 +58,9 @@ class recognition:
 			    slopes.append(float(count[x1]-count[x1+1])*c1)   
 			return count,slopes
 		return count
-
-def follow_most_pixels1(gain,xit,yit):
-	l1=rec.wh_det(x1=0,x2=320,y1=200,y2=100,xit=xit, yit=yit,er_max=3,slope_en=0)
-	print l1
-	#first algorithim, follow most pixels
-	sum1=0
-	sum2=0
-	for x in range(0, len(l1)):
-		if x<len(l1)/2:
-			if l1[x]>10:
-				sum1+=1	
-		else:
-			if l1[x]>10:
-				sum2+=1
-	offset=gain*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
-	#offset=gain*float(sum2-sum1)
-	if offset>15:
-		return 15
-	elif offset<-15:
-		return -15
-	else:
-		return offset
-	print 'left'+str(sum1)
-	print 'right'+str(sum2)
-	print 'offset'+str(offset)
-	return offset
+				
 def follow_most_pixels(gain,xit,yit):
-	l1=rec.wh_det(x1=0,x2=320,y1=200,y2=100,xit=xit, yit=yit,er_max=3,slope_en=0)
+	l1=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=2,slope_en=0)
 	print l1
 	#first algorithim, follow most pixels
 	sum1=0
@@ -97,63 +72,9 @@ def follow_most_pixels(gain,xit,yit):
 			sum2+=l1[x]
 	offset=gain*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
 	#offset=gain*float(sum2-sum1)
-	#I control
-	if offset>15:
-		return 15
-	elif offset<-15:
-		return -15
-	else:
-		return offset
-	print 'left'+str(sum1)
-	print 'right'+str(sum2)
-	print 'offset'+str(offset)
 	return offset
-def control_distance(xit,yit,gain,side=1,dist=40):#side=1, right of sidewalk
-	l1,slopes=rec.wh_det(x1=0,x2=320,y1=230,y2=40,xit=xit, yit=yit,er_max=5,slope_en=1)
-	print l1,slopes
-	if side==1:
-		#find sidewalk edge
-		zeroend=len(l1)-1
-		for x in range(len(l1)/2, len(l1)):
-			if l1[x]==0:
-				zeroend=x
-				break
-		#offset from slope, positive for turn right
-		it=0
-		tot=0
-		for x in range(zeroend-5, zeroend-1):
-			tot+=slopes[x]
-			it+=1		
-		if tot==0:
-			print 'condition 1'
-			return 5#set low for straight sidewalks
-		slope=tot/it
-		if slope>0:
-			print 'condition 2'
-			return 5
-		elif slope>-1:
-			print 'condition 3'
-			return -10
-		#print str(zeroend*xit),l1[zeroend]*yit
-		b=(l1[zeroend]*yit)-slope*(zeroend-len(l1)/2)*xit
-		#intersection points
-		x1=-b/(slope+(1/slope))
-		y1=x1*slope+b
-		print 'intersection points'
-		print x1,y1
-		print 'slope,b\n',slope,b
-		dist_to_sw=math.sqrt(x1**2+y1**2)
-		#dist_to_sw=(-b)/slope
-		print 'distance to sidewalk, '+str(dist_to_sw)+' pixels'
-		offset=gain*(dist_to_sw-dist)
-		if offset>10:
-			return 10
-		elif offset<-10:
-			return -10
-		else:
-			return offset
-	else:
-		pass
+
+
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
 	rec=recognition()
@@ -166,25 +87,27 @@ if __name__ == "__main__":
 				#follow compass while checking if path edges are too close.
 				it=0
 				start = time.time()
+				I=0#moving average to stabilize robot
+				Ideg=0#a integrator that loses value over time
 				while True:
 					print '------iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
-					xit=5
-					yit=-5
-					print 'xit,yit'
-					print xit,yit
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
-					#if too close turn away from edge
-					
-					#offset=follow_most_pixels1(gain=60,xit=5,yit=-5)
-					offset=control_distance(5,-5,gain=1,dist=40)
+					P=follow_most_pixels(gain=30,xit=10,yit=-10)
+					offset=I+.5*P+.5*Ideg
+					print 'P ',P
+					print 'I ',I
+					print 'Ideg ',Ideg
+					#I=.99*I+.01*P#new I
+					Ideg=.5*Ideg+P
+					#offset=control_distance(5,-5,gain=1,dist=40)
 					print 'offset ',offset
 					it+=1
-					time.sleep(.8)
+					time.sleep(.4)
 					end=time.time()
-					if end-start>30:
+					if end-start>20:
 						print 'stage '+str(stage)+' performed at '+str(it/(end-start))+' hertz'
 						exit()
 		elif state=='turn':
