@@ -136,10 +136,11 @@ def control_distance(xit,yit,side=1,dist=40):#side=1, right of sidewalk
 	if side==1:
 		y1=215
 		y2=45
+		inc_max=(y2-y1)/5
 		l1,slopes=rec.wh_det(x1=160,x2=320,y1=y1,y2=y2,xit=xit, yit=yit,er_max=3,slope_en=1)
 		print l1,slopes
 		#check if edge cant be seen
-		if l1[-1]==(y2-y1)/5 or l1[-2]==(y2-y1)/5:
+		if l1[-6]>inc_max-3 or l1[-5]>inc_max-3:
 			print 'condition 1'
 			return 10
 		#offset from slope, positive for turn right
@@ -177,7 +178,7 @@ if __name__ == "__main__":
 				it=0
 				start = time.time()
 				car1.forward()
-				Ideg=0#a integrator that loses value over time
+				I=0
 				while True:
 					print '------iteration '+str(it)+' ---------'
 					#perform white detection
@@ -186,14 +187,13 @@ if __name__ == "__main__":
 					#check gps for change to turn state
 					#error=control_distance(5,-5,dist=40)
 					error=follow_most_pixels(xit=10,yit=-10)
-					offset=40*error+50*Ideg
+					offset=30*error+50*Ideg
 					print 'P ',P
-					#print 'I ',I
-					print 'Ideg ',Ideg
-					#update Ideg
+					print 'I ',I
+					#update I
 					period=(end-start)/it
-					Ideg=.95*Ideg+error*(time.time()-end)/period#multiply by change in time
-					#I=I+error
+					I=I+error*(time.time()-end)/period#multiply by change in time
+
 					
 					#set speed
 					print 'error ', error
