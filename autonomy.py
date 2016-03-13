@@ -116,7 +116,7 @@ class car:
 		PWM.stop(self.right_wheel)
 		PWM.stop(self.left_wheel)
 		PWM.cleanup()
-def follow_most_pixels(gain,xit,yit):
+def follow_most_pixels(xit,yit,inp=.5):
 	l1=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=2,slope_en=0)
 	print l1
 	#first algorithim, follow most pixels
@@ -127,36 +127,29 @@ def follow_most_pixels(gain,xit,yit):
 			sum1+=l1[x]	
 		else:
 			sum2+=l1[x]
-	print 'sum1 ',sum1
-	print 'sum2 ',sum2
-	offset=gain*(.5-(float(sum1+1)/(sum1+sum2+2)))#gain times error
+	print 'left pixels ',sum1
+	print 'right pixels ',sum2
+	error=(inp-(float(sum1+1)/(sum1+sum2+2)))#gain times error
 	#offset=gain*float(sum2-sum1)
-	return offset
-def control_distance(xit,yit,gain,side=1,dist=40):#side=1, right of sidewalk
-	l1,slopes=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=3,slope_en=1)
-	print l1,slopes
+	return error
+def control_distance(xit,yit,side=1,dist=40):#side=1, right of sidewalk
 	if side==1:
-		#find sidewalk edge
-		zeroend=len(l1)-1
-		for x in range(len(l1)/2, len(l1)):
-			if l1[x]==0:
-				zeroend=x
-				break
+		y1=215
+		y2=45
+		l1,slopes=rec.wh_det(x1=160,x2=320,y1=y1,y2=y2,xit=xit, yit=yit,er_max=3,slope_en=1)
+		print l1,slopes
+		#check if edge cant be seen
+		if l1[-1]==(y2-y1)/5 or l1[-2]==(y2-y1)/5:
+			print 'condition 1'
+			return 10
 		#offset from slope, positive for turn right
 		it=0
 		tot=0
-		for x in range(zeroend-5, zeroend-1):
+		for x in range(len(slopes)-6, len(slopes)):
 			tot+=slopes[x]
-			it+=1		
-		if tot==0:
-			print 'condition 1'
-			return 5#set low for straight sidewalks
+			it+=1
 		slope=tot/it
-		if slope>0:
-			print 'condition 2, positive slope'
-			return 0
-		#print str(zeroend*xit),l1[zeroend]*yit
-		b=(l1[zeroend]*yit)-slope*(zeroend-len(l1)/2)*xit
+		b=(((l1[-1]+l1[-2])/2)*yit)-slope*160
 		#intersection points
 		x1=-b/(slope+(1/slope))
 		y1=x1*slope+b
@@ -166,8 +159,8 @@ def control_distance(xit,yit,gain,side=1,dist=40):#side=1, right of sidewalk
 		dist_to_sw=math.sqrt(x1**2+y1**2)
 		#dist_to_sw=(-b)/slope
 		print 'distance to sidewalk, '+str(dist_to_sw)+' pixels'
-		offset=gain*(dist_to_sw-dist)
-		return offset
+		error=(dist_to_sw-dist)
+		return error
 	else:
 		pass
 if __name__ == "__main__":
@@ -191,16 +184,20 @@ if __name__ == "__main__":
 					rec.get_img()
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
-					P=follow_most_pixels(gain=60,xit=10,yit=-10)
-					offset=P+Ideg
+					#error=control_distance(5,-5,dist=40)
+					error=follow_most_pixels(xit=10,yit=-10)
+					offset=40*error+50*Ideg
 					print 'P ',P
-					print 'I ',I
+					#print 'I ',I
 					print 'Ideg ',Ideg
 					#update Ideg
-					Ideg=.8*Ideg+.2*P
-					#offset=control_distance(5,-5,gain=1,dist=40)
-					print 'offset ',offset
+					period=(end-start)/it
+					Ideg=.95*Ideg+error*(time.time()-end)/period#multiply by change in time
+					#I=I+error
 					
+					#set speed
+					print 'error ', error
+					print 'offset ',offset
 					car1.speed1(60, -offset)
 					it+=1
 					#if debug_mode==1:
