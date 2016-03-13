@@ -177,6 +177,7 @@ if __name__ == "__main__":
 				#follow compass while checking if path edges are too close.
 				it=0
 				start = time.time()
+				end1=start
 				car1.forward()
 				I=0
 				while True:
@@ -187,25 +188,28 @@ if __name__ == "__main__":
 					#check gps for change to turn state
 					#error=control_distance(5,-5,dist=40)
 					error=follow_most_pixels(xit=10,yit=-10)
-					offset=30*error+50*Ideg
-					print 'P ',P
-					print 'I ',I
+					print 'error ', error
+					offset=30*error+50*I
+					print 'P ',str(30*error)
+					print 'I ',str(50*I)
 					#update I
+					it+=1
+					end=time.time()
 					period=(end-start)/it
-					I=I+error*(time.time()-end)/period#multiply by change in time
+					I=I+error*(time.time()-end1)/period#multiply by change in time
 
 					
 					#set speed
-					print 'error ', error
-					print 'offset ',offset
+					print 'offset ',offset					
+					
 					car1.speed1(60, -offset)
-					it+=1
+
 					#if debug_mode==1:
 					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
-					end=time.time()
-					if end-start>20:
+					end1=time.time()
+					if end1-start>20:
 						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end-start))+' hertz'
+						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()
 		elif state=='turn':
 			if stage==0:
