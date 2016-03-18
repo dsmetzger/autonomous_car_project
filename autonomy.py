@@ -5,19 +5,21 @@ import time
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.GPIO as GPIO
 import math
-
 import serial
 import Adafruit_BBIO.UART as UART
-
+import smbus
+#compass
+bus = smbus.SMBus(1)
+address = 0x1e
+#gps
 UART.setup("UART4")
-
 gps1 = serial.Serial("/dev/ttyO4", 4800)
 
 
 coordinates=[[3849.6589066667,7718.3471666667],[3849.669975,7718.3229125]]  #holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
 
 state="turn"  #the current state of the robot.
-stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
 gps_read_flag=0  #set to 0 while its being written to in the thread
 gps_position=[0.0,0.0]  #lat,lon
@@ -26,6 +28,50 @@ object_detect=0 #thread the sonar
 
 speed=0 #speed to be changed by inclination
 
+#compass
+heading =0
+incline =0
+def read_word(adr):
+    high = bus.read_byte_data(address, adr)
+    low = bus.read_byte_data(address, adr+1)
+    val = (high << 8) + low
+    return val
+def read_word_2c(adr):
+    val = read_word(adr)
+    if (val >= 0x8000):
+        return -((65535 - val) + 1)
+    else:
+        return val
+def write_byte(adr, value):
+    bus.write_byte_data(address, adr, value)	
+def compass():
+	global heading
+	global incline
+	write_byte(0, 0b01110000)
+	write_byte(1, 0b00100000)
+	write_byte(2, 0b00000000)
+	
+	x_offset = 9
+	y_offset = -80
+	z_offset = -165
+	while True:
+		
+		
+		x_out = (read_word_2c(3) - x_offset) * 0.92
+		y_out = (read_word_2c(7) - y_offset) * 0.92
+		z_out = (read_word_2c(5) - z_offset) * 0.92
+		
+		h1  = math.atan2(y_out, x_out)
+		d1 = math.atan2(z_out, math.sqrt(x_out**2+y_out**2)) 
+		#print 'x_out ',x_out		
+		#print 'y_out ',y_out
+		#print 'z_out ',z_out
+		#declination is -10*31' = -10.517
+		heading = .7*heading + .3*(math.degrees(h1))
+		incline = .7*incline + .3*(math.degrees(d1))
+		time.sleep(.05)
+
+#camera
 class recognition:
 	def __init__(self):
 		#Begins camera connection
@@ -233,6 +279,7 @@ if __name__ == "__main__":
 	
 	#Thread gps sonar and compass
 	thread.start_new_thread(get_location, ())
+	thread.start_new_thread(compass, ())
 	time.sleep(3)
 	while True:
 		if state=='drive':
@@ -266,14 +313,51 @@ if __name__ == "__main__":
 					print 'offset ',offset					
 					
 					car1.speed(55, -offset)
-					#if debug_mode==1:
-					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
 					end1=time.time()
+					print gps_position
+					if math.sqrt((gps_position[0]-coordinates[stage+1][0])**2+(gps_position[1]-coordinates[stage+1][1])**2)< .00641098:
+						print 'change to turn stage ',stage
+						global state
+						state='turn'
+						car1.speed(0, 0)
+						break
 					if end1-start>40:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()
-			if stage==3:
+			
+			elif stage==2:
+				print "stage=2"
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				car1.speed(45, 0)
+				turn=0
+				while True:#go till edge is detected
+					print '------iteration '+str(it)+' ---------'
+					#perform white detection
+					rec.get_img()
+					l1=rec.wh_det(x1=0,x2=121,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
+					print l1
+					#check sonar. if true change behavior and break
+					it+=1
+					end1=time.time()
+					if l1[-1]< 20 or l1[-2]<18:
+						turn+=1
+					if turn ==3:
+						print 'change to turn stage 2'
+						global state
+						state='turn'
+						global stage
+						stage=2
+						car1.speed(0, 0)
+						break
+					if end1-start>20:
+						car1.stop()
+						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						exit()	
+			elif stage==3:
 				it=0
 				start = time.time()
 				end1=start
@@ -292,7 +376,7 @@ if __name__ == "__main__":
 					#offset=20*error+40*I#working
 					offset=20*error+80*I
 					print 'P ',str(20*error)
-					print 'I ',str(40*I)
+					print 'I ',str(80*I)
 					#update I
 					it+=1
 					end=time.time()
@@ -305,8 +389,7 @@ if __name__ == "__main__":
 					
 					car1.speed(60, -offset)
 
-					#if debug_mode==1:
-					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
+					
 					end1=time.time()
 					if end1-start>20:
 						car1.stop()
@@ -380,12 +463,52 @@ if __name__ == "__main__":
 					print 'offset ',offset					
 					
 					car1.speed(50, -offset)
-					#check if comapass is 30 degrees to sidewalk (started turn) travel forward til hit side walk, change to stage 2
+					#check if comapass is 30 degrees to sidewalk (started turn), change to next drive state 2
+					print 'heading ',heading
 					end1=time.time()
 					if end1-start>40:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()
+			elif stage==2:#turn left when allowed #stage 2 turn into forest area
+				print "stage=21"
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				turn=0#when >0 turn towards sidewalk, else turn away sidewalk
+				while True:
+					print '------iteration '+str(it)+' ---------'
+					#perform white detection
+					rec.get_img()
+					#check for turn
+					#count=rec.wh_det_horizontal(x1=160,x2=320,y1=200,y2=180,xit=10,yit=-10,er_max=2)
+					l1=rec.wh_det(x1=0,x2=121,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
+					print l1	
+					#check sonar. if true change behavior and break
+					#check gps for change to turn state					
+					if l1[-1] > 16 and l1[-2]>18:
+						if turn<3:
+							turn+=1
+					else:
+						if turn>-3:
+							turn-=1
+					#set speed					
+					if turn ==1:
+						print 'turn left'
+						car1.forward()
+						car1.speed(50, 15)
+					elif turn== -1:
+						print 'turn right'
+						car1.spin_right()
+						car1.speed(50, 0)
+					it+=1
+					end1=time.time()
+					#check if compass is in direction of forest sidewalk
+					if end1-start>20:
+						car1.stop()
+						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						exit()	
 			elif stage==20:
 				print "stage=20"
 				it=0
@@ -425,7 +548,7 @@ if __name__ == "__main__":
 					if end1-start>20:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()		
+						exit()
 			elif stage==21:#turn right when allowed
 				print "stage=21"
 				it=0
@@ -444,7 +567,7 @@ if __name__ == "__main__":
 					print l1	
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state					
-					if l1[-1] > 24 or l1[-2]>24:
+					if l1[-1] > 22 and l1[-2]>20:
 						if turn<3:
 							turn+=1
 					else:
@@ -467,9 +590,5 @@ if __name__ == "__main__":
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()	
-			elif stage==2:
-				#keep moving until the edge of the camera detects white.
-				#when detected, turn in a constant circle(radius of about .6 m) until the edge of the side walk is detected within a specified distance. orientate and drive.
-				pass
 		elif state=='ob_det':
 			pass
