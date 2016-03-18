@@ -21,7 +21,7 @@ speed=0 #speed to be changed by inclination
 class recognition:
 	def __init__(self):
 		#Begins camera connection
-		self.cap = cv2.VideoCapture(0)
+		self.cap = cv2.VideoCapture(1)
 	def get_img(self):
 		#update current image.
 		while 1:
@@ -152,9 +152,9 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 			b_avg=b+10
 		else:
 			slope1=tot/it
-			slope_avg=.1*slope1+.9*slope
+			slope_avg=.03333*slope1+.9666*slope
 			b1=(((l1[-1]+l1[-2])/2)*yit)-slope*160
-			b_avg=.1*b1+.9*b
+			b_avg=.03333*b1+.9666*b
 		#intersection points
 		x1=-b_avg/(slope_avg+(1/slope_avg))
 		y1=x1*slope_avg+b_avg

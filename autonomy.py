@@ -6,6 +6,7 @@ import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.GPIO as GPIO
 import math
 
+import serial
 import Adafruit_BBIO.UART as UART
 
 UART.setup("UART4")
@@ -109,14 +110,14 @@ class car:
 		GPIO.output(self.right_wheel_dir, GPIO.HIGH)
 		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
 	def backward(self):
-		GPIO.output(self.right_wheel_direction, GPIO.LOW)
-		GPIO.output(self.left_wheel_direction, GPIO.LOW)
+		GPIO.output(self.right_wheel_dir, GPIO.LOW)
+		GPIO.output(self.left_wheel_dir, GPIO.LOW)
 	def spin_left(self):
-		GPIO.output(self.right_wheel_direction, GPIO.HIGH)
-		GPIO.output(self.left_wheel_direction, GPIO.LOW)
+		GPIO.output(self.right_wheel_dir, GPIO.HIGH)
+		GPIO.output(self.left_wheel_dir, GPIO.LOW)
 	def spin_right(self):
-		GPIO.output(self.right_wheel_direction, GPIO.LOW)
-		GPIO.output(self.left_wheel_direction, GPIO.HIGH)
+		GPIO.output(self.right_wheel_dir, GPIO.LOW)
+		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
 	def speed(self, duty=60, offset=0):
 		#changes the speed of individual motors to a specified inputs using PWM.
 		if offset>20:
@@ -160,14 +161,16 @@ def follow_most_pixels(xit,yit,inp=.5,alg=0):
 				sum1+=l1[x]	
 			else:
 				sum2+=l1[x]
+		error=(inp-(float(sum1+1)/(sum1+sum2+2)))
 	elif alg==1:
 		#right side
-		l1=rec.wh_det(x1=200,x2=320,y1=215,y2=100,xit=xit, yit=yit,er_max=2,slope_en=0)
+		l1=rec.wh_det(x1=280,x2=320,y1=215,y2=100,xit=xit, yit=yit,er_max=2,slope_en=0)
 		print l1
 		for x in range(0, len(l1)):
-			if l1[x]<18:
+			if l1[x]<14:
 				sum1+=1	
 		sum2=len(l1)
+		error=(inp-(float(sum1+1)/(sum2+1)))
 	else:
 		#left side
 		l1=rec.wh_det(x1=0,x2=160,y1=215,y2=100,xit=xit, yit=yit,er_max=2,slope_en=0)
@@ -179,9 +182,10 @@ def follow_most_pixels(xit,yit,inp=.5,alg=0):
 			else:
 				if l1[x]>8:
 					sum2+=1
+		error=(inp-(float(sum1+1)/(sum1+sum2+2)))
 	print 'left pixels ',sum1
 	print 'right pixels ',sum2
-	error=(inp-(float(sum1+1)/(sum1+sum2+2)))#gain times error
+	#error=(inp-(float(sum1+1)/(sum1+sum2+2)))
 	#offset=gain*float(sum2-sum1)
 	return error
 
@@ -190,7 +194,7 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 		y1=240
 		y2=80
 		inc_max=abs((y2-y1)/yit)
-		l1,slopes=rec.wh_det(x1=290,x2=320,y1=y1,y2=y2,xit=xit, yit=yit,er_max=3,slope_en=1)
+		l1,slopes=rec.wh_det(x1=305,x2=320,y1=y1,y2=y2,xit=xit, yit=yit,er_max=3,slope_en=1)
 		print l1,slopes
 		#offset from slope, positive for turn right
 		it=0
@@ -206,9 +210,9 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 			b_avg=b+10
 		else:
 			slope1=tot/it
-			slope_avg=.1*slope1+.9*slope
+			slope_avg=.03333*slope1+.9666*slope
 			b1=(((l1[-1]+l1[-2])/2)*yit)-slope*160
-			b_avg=.1*b1+.9*b
+			b_avg=.03333*b1+.9666*b
 		#intersection points
 		x1=-b_avg/(slope_avg+(1/slope_avg))
 		y1=x1*slope_avg+b_avg
@@ -232,7 +236,44 @@ if __name__ == "__main__":
 	time.sleep(3)
 	while True:
 		if state=='drive':
-			if stage==0 or stage==1 or stage==2:
+			if stage==0 or stage==1:
+				print "stage=",stage
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				I=0
+				while True:
+					print '------iteration '+str(it)+' ---------'
+					#perform white detection
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					#check gps for change to turn state
+					#error=control_distance(5,-5,dist=40)
+					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
+					print 'error ', error
+					offset=30*error+40*I
+					print 'P ',str(30*error)
+					print 'I ',str(30*I)
+					#update I
+					it+=1
+					end=time.time()
+					period=(end-start)/it
+					I=.6*I+.4*error*(time.time()-end1)/period#multiply by change in time
+
+					
+					#set speed
+					print 'offset ',offset					
+					
+					car1.speed(55, -offset)
+					#if debug_mode==1:
+					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
+					end1=time.time()
+					if end1-start>40:
+						car1.stop()
+						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						exit()
+			if stage==3:
 				it=0
 				start = time.time()
 				end1=start
@@ -273,6 +314,7 @@ if __name__ == "__main__":
 						exit()
 		elif state=='turn':
 			print "state=turn"
+			
 			if stage==0:
 				print "stage=0"
 				it=0
@@ -289,25 +331,58 @@ if __name__ == "__main__":
 					#error=control_distance(5,-5,dist=40)
 					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
 					print 'error ', error
-					offset=50*error+40*I
+					offset=30*error+40*I
 					print 'P ',str(30*error)
 					print 'I ',str(30*I)
 					#update I
 					it+=1
 					end=time.time()
 					period=(end-start)/it
-					I=.3*I+error*(time.time()-end1)/period#multiply by change in time
+					I=.6*I+.4*error*(time.time()-end1)/period
+
+					
+					#set speed
+					print 'offset ',offset					
+					car1.speed(40, -offset)
+
+					end1=time.time()
+					if end1-start>40:
+						car1.stop()
+						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						exit()
+			elif stage==1:
+				print "stage=1"
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				I=0
+				while True:
+					print '------iteration '+str(it)+' ---------'
+					#perform white detection
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					#check gps for change to turn state
+					#error=control_distance(5,-5,dist=40)
+					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
+					print 'error ', error
+					offset=30*error+40*I
+					print 'P ',str(30*error)
+					print 'I ',str(30*I)
+					#update I
+					it+=1
+					end=time.time()
+					period=(end-start)/it
+					I=.6*I+.4*error*(time.time()-end1)/period
 
 					
 					#set speed
 					print 'offset ',offset					
 					
-					car1.speed(55, -offset)
-
-					#if debug_mode==1:
-					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
+					car1.speed(50, -offset)
+					#check if comapass is 30 degrees to sidewalk (started turn) travel forward til hit side walk, change to stage 2
 					end1=time.time()
-					if end1-start>20:
+					if end1-start>40:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()
@@ -365,26 +440,26 @@ if __name__ == "__main__":
 					rec.get_img()
 					#check for turn
 					#count=rec.wh_det_horizontal(x1=160,x2=320,y1=200,y2=180,xit=10,yit=-10,er_max=2)
-					l1=rec.wh_det(x1=80,x2=240,y1=220,y2=135,xit=40, yit=5,er_max=2,slope_en=0)
+					l1=rec.wh_det(x1=119,x2=320,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
 					print l1	
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state					
-					if l1[-1] > 6
-						if turn<4:
+					if l1[-1] > 24 or l1[-2]>24:
+						if turn<3:
 							turn+=1
 					else:
-						if turn>-4:
+						if turn>-3:
 							turn-=1
+					#set speed					
 					if turn ==1:
 						print 'turn right'
 						car1.forward()
-						car1.speed(55, -20)
+						car1.speed(50, -15)
 					elif turn== -1:
-						print 'turn left
+						print 'turn left'
 						car1.spin_left()
-						car1.speed(55, 0)
-					#set speed
-
+						car1.speed(50, 0)
+					it+=1
 					#if debug_mode==1:
 					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
 					end1=time.time()
