@@ -11,26 +11,29 @@ import smbus
 #compass
 bus = smbus.SMBus(1)
 address = 0x1e
+#thread locks
+hlock = thread.allocate_lock()
+ilock = thread.allocate_lock()
+
 #gps
 UART.setup("UART4")
 gps1 = serial.Serial("/dev/ttyO4", 4800)
 
-
-coordinates=[[3849.6589066667,7718.3471666667],[3849.669975,7718.3229125]]  #holds the waypoints to navigate to, odd indexs should be end of straight section of sidewalk.
+#38.82764204,-77.30581341
+# section 1 end [3849.7124, 7718.3908]
+coordinates=[[3849.669975,7718.3229125],[3849.6589066667,7718.3471666667],[3849.7127, 7718.3901]]  #holds the waypoints to navigate to of signifigant turns, first waypoint is starting point
 
 state="turn"  #the current state of the robot.
-stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
-gps_read_flag=0  #set to 0 while its being written to in the thread
 gps_position=[0.0,0.0]  #lat,lon
 
 object_detect=0 #thread the sonar
 
-speed=0 #speed to be changed by inclination
 
 #compass
-heading =0
-incline =0
+heading =0.0
+incline =0.0
 def read_word(adr):
     high = bus.read_byte_data(address, adr)
     low = bus.read_byte_data(address, adr+1)
@@ -51,24 +54,27 @@ def compass():
 	write_byte(1, 0b00100000)
 	write_byte(2, 0b00000000)
 	
-	x_offset = 9
-	y_offset = -80
-	z_offset = -165
+	x_offset = 18#9
+	y_offset = -95#-80
+	z_offset = -27#0
+	#for calibration
 	while True:
-		
-		
-		x_out = (read_word_2c(3) - x_offset) * 0.92
-		y_out = (read_word_2c(7) - y_offset) * 0.92
-		z_out = (read_word_2c(5) - z_offset) * 0.92
-		
+		x_out = (read_word_2c(3) - x_offset) * 1.271859
+		y_out = (read_word_2c(7) - y_offset) * 1
+		z_out = (read_word_2c(5) - z_offset) * 1.183432
 		h1  = math.atan2(y_out, x_out)
-		d1 = math.atan2(z_out, math.sqrt(x_out**2+y_out**2)) 
-		#print 'x_out ',x_out		
-		#print 'y_out ',y_out
-		#print 'z_out ',z_out
+		d1 = math.atan2(-z_out, math.sqrt(x_out**2+y_out**2))
 		#declination is -10*31' = -10.517
-		heading = .7*heading + .3*(math.degrees(h1))
-		incline = .7*incline + .3*(math.degrees(d1))
+	        if (h1 < 0):
+		        h1 += 2 * math.pi
+                if (d1 < 0):
+		        d1 += 2 * math.pi
+		hlock.acquire()
+		heading = .8*heading + .2*(math.degrees(h1))
+                hlock.release()
+                ilock.acquire()
+		incline = .8*incline + .2*(math.degrees(d1))
+                ilock.release()
 		time.sleep(.05)
 
 #camera
@@ -94,8 +100,8 @@ class recognition:
 			test=er_max#used to ignore noise in the image. if the values goes too low the system stops incrementing in that y direction
 			for y in range(y1,y2,yit):
 				bgr=self.img[y,x]
-				if abs(int(bgr[1])-int(bgr[2]))<14 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
-				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+                                if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>90 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
 		            			test+=1
@@ -121,7 +127,7 @@ class recognition:
 			test=er_max
 			for x in range(x1,x2,xit):
 				bgr=self.img[y,x]
-				if abs(int(bgr[1])-int(bgr[2]))<14 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
+				if abs(int(bgr[1])-int(bgr[2]))<18 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
 				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
@@ -164,7 +170,7 @@ class car:
 	def spin_right(self):
 		GPIO.output(self.right_wheel_dir, GPIO.LOW)
 		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
-	def speed(self, duty=60, offset=0):
+	def speed(self, duty=55, offset=0):
 		#changes the speed of individual motors to a specified inputs using PWM.
 		if offset>20:
 			x=20
@@ -188,7 +194,7 @@ def get_location():
 		data_array1 = data1.split(',')
 	
 		if data_array1[0]=='$GPGGA':
-			if segmented_data[6]!=0:
+			if data_array1[6]!=0:
 				gps_position[0] = float(data_array1[2])
 				gps_position[1] = float(data_array1[4])
 
@@ -217,7 +223,7 @@ def follow_most_pixels(xit,yit,inp=.5,alg=0):
 				sum1+=1	
 		sum2=len(l1)
 		error=(inp-(float(sum1+1)/(sum2+1)))
-	else:
+	elif alg==2:
 		#left side
 		l1=rec.wh_det(x1=0,x2=160,y1=215,y2=100,xit=xit, yit=yit,er_max=2,slope_en=0)
 		print l1
@@ -229,10 +235,18 @@ def follow_most_pixels(xit,yit,inp=.5,alg=0):
 				if l1[x]>8:
 					sum2+=1
 		error=(inp-(float(sum1+1)/(sum1+sum2+2)))
+	elif alg==3:
+		#follow most matching pixels with emphasis on high values
+		l1=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=2,slope_en=0)
+		print l1
+		for x in range(0, len(l1)):
+			if x<len(l1)/2:
+				sum1+=(l1[x])**2#exponent can be increased	
+			else:
+				sum2+=(l1[x])**2
+		error=(inp-(float(sum1+1)/(sum1+sum2+2)))
 	print 'left pixels ',sum1
 	print 'right pixels ',sum2
-	#error=(inp-(float(sum1+1)/(sum1+sum2+2)))
-	#offset=gain*float(sum2-sum1)
 	return error
 
 def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
@@ -272,6 +286,12 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 		return error,slope_avg,b_avg
 	else:
 		pass
+def gps_check(destination=coordinates[stage+1]):
+	#used at end of stages
+        if math.sqrt((gps_position[0]-destination[0])**2+(gps_position[1]-destination[1])**2)< .00641098:
+                return True
+        else:
+                return False
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
 	rec=recognition()
@@ -280,27 +300,61 @@ if __name__ == "__main__":
 	#Thread gps sonar and compass
 	thread.start_new_thread(get_location, ())
 	thread.start_new_thread(compass, ())
+
 	time.sleep(3)
 	while True:
 		if state=='drive':
-			if stage==0 or stage==1:
-				print "stage=",stage
+			if stage==0:
 				it=0
 				start = time.time()
 				end1=start
 				car1.forward()
 				I=0
 				while True:
-					print '------iteration '+str(it)+' ---------'
-					#perform white detection
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
+					print 'error ', error
+					offset=30*error+40*I
+					print 'P ',str(30*error)
+					print 'I ',str(40*I)
+					#update I
+					it+=1
+					end=time.time()
+					period=(end-start)/it
+					I=.6*I+.4*error*(time.time()-end1)/period#multiply by change in time
+
+					
+					#set speed
+                                        print 'offset ',offset	                                        
+                                        car1.speed(55, -offset)
+					end1=time.time()
+					print 'position ',gps_position
+					if gps_check():
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						print 'change to turn stage ',stage
+						global state
+						state='turn'
+						break
+			elif stage==1:
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				I=0
+                                section=0
+				pwm=0
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ----section '+str(section)+'-----'
 					rec.get_img()
 					#check sonar. if true change behavior and break
 					#check gps for change to turn state
 					#error=control_distance(5,-5,dist=40)
 					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
 					print 'error ', error
-					offset=30*error+40*I
-					print 'P ',str(30*error)
+					offset=40*error+30*I
+					print 'P ',str(40*error)
 					print 'I ',str(30*I)
 					#update I
 					it+=1
@@ -310,24 +364,35 @@ if __name__ == "__main__":
 
 					
 					#set speed
-					print 'offset ',offset					
 					
-					car1.speed(55, -offset)
+                                        print heading
+                                        #if math.sqrt((gps_position[0]-3849.6860348)**2+(gps_position[1]-7718.3563952)**2)< .00641098:
+					if section==0 and gps_check(destination=[3849.6823, 7718.364]):                                           
+						section=1
+					elif section==1 and gps_check(destination=[3849.7007, 7718.3796]):
+						section=2
+					elif section==2 and gps_check(destination=[3849.6938, 7718.3792]):
+						section=3
+                                        if section==0:       
+                                                pwm=60
+                                        elif section==1:
+                                                pwm=60
+                                                if heading>289 or heading<0:#338-20
+                                                        if offset>0:                                                       
+                                                                offset=0
+                                        else:
+                                                pwm=65
+                                        print 'offset ',offset	                                        
+                                        car1.speed(pwm, -offset)
 					end1=time.time()
 					print gps_position
-					if math.sqrt((gps_position[0]-coordinates[stage+1][0])**2+(gps_position[1]-coordinates[stage+1][1])**2)< .00641098:
+					if gps_check():
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						print 'change to turn stage ',stage
 						global state
 						state='turn'
-						car1.speed(0, 0)
 						break
-					if end1-start>40:
-						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()
-			
-			elif stage==2:
-				print "stage=2"
+			elif stage==2: #possibly stage 2
 				it=0
 				start = time.time()
 				end1=start
@@ -335,7 +400,7 @@ if __name__ == "__main__":
 				car1.speed(45, 0)
 				turn=0
 				while True:#go till edge is detected
-					print '------iteration '+str(it)+' ---------'
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
 					l1=rec.wh_det(x1=0,x2=121,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
@@ -346,17 +411,13 @@ if __name__ == "__main__":
 					if l1[-1]< 20 or l1[-2]<18:
 						turn+=1
 					if turn ==3:
+						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						print 'change to turn stage 2'
 						global state
 						state='turn'
-						global stage
-						stage=2
 						car1.speed(0, 0)
-						break
-					if end1-start>20:
-						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()	
+                                                break
+						
 			elif stage==3:
 				it=0
 				start = time.time()
@@ -364,7 +425,7 @@ if __name__ == "__main__":
 				car1.forward()
 				I=0
 				while True:
-					print '------iteration '+str(it)+' ---------'
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
 					#check sonar. if true change behavior and break
@@ -386,36 +447,29 @@ if __name__ == "__main__":
 					
 					#set speed
 					print 'offset ',offset					
-					
-					car1.speed(60, -offset)
-
-					
+					car1.speed(65, -offset)
 					end1=time.time()
-					if end1-start>20:
-						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()
+					if gps_check(car1):
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						print 'change to turn stage ',stage
+						global state
+						state='turn'
+						break
 		elif state=='turn':
-			print "state=turn"
-			
 			if stage==0:
-				print "stage=0"
 				it=0
 				start = time.time()
 				end1=start
 				car1.forward()
 				I=0
 				while True:
-					print '------iteration '+str(it)+' ---------'
-					#perform white detection
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
-					#check gps for change to turn state
-					#error=control_distance(5,-5,dist=40)
 					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
 					print 'error ', error
-					offset=30*error+40*I
-					print 'P ',str(30*error)
+					offset=40*error+30*I
+					print 'P ',str(40*error)
 					print 'I ',str(30*I)
 					#update I
 					it+=1
@@ -424,24 +478,31 @@ if __name__ == "__main__":
 					I=.6*I+.4*error*(time.time()-end1)/period
 
 					
-					#set speed
+					#set speed based on time
+					pwm=55-(end-start)/2
+					if pwm<30:
+						pwm=30
 					print 'offset ',offset					
-					car1.speed(40, -offset)
-
-					end1=time.time()
-					if end1-start>40:
-						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()
+					car1.speed(pwm, -offset)#nominal 40
+                                        print 'heading ',heading
+                                        end1=time.time()
+                                        if heading>280 or heading < 30:
+                                                print 'change to drive 1'
+                                                car1.speed(65,0)
+                                                global state
+                                                global stage
+                                                state='drive'
+                                                stage=1
+					        print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						break
 			elif stage==1:
-				print "stage=1"
 				it=0
 				start = time.time()
 				end1=start
 				car1.forward()
 				I=0
 				while True:
-					print '------iteration '+str(it)+' ---------'
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
 					#check sonar. if true change behavior and break
@@ -466,20 +527,18 @@ if __name__ == "__main__":
 					#check if comapass is 30 degrees to sidewalk (started turn), change to next drive state 2
 					print 'heading ',heading
 					end1=time.time()
-					if end1-start>40:
+					if end1-start>50:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()
 			elif stage==2:#turn left when allowed #stage 2 turn into forest area
-				print "stage=21"
 				it=0
 				start = time.time()
 				end1=start
 				car1.forward()
 				turn=0#when >0 turn towards sidewalk, else turn away sidewalk
 				while True:
-					print '------iteration '+str(it)+' ---------'
-					#perform white detection
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check for turn
 					#count=rec.wh_det_horizontal(x1=160,x2=320,y1=200,y2=180,xit=10,yit=-10,er_max=2)
@@ -505,12 +564,12 @@ if __name__ == "__main__":
 					it+=1
 					end1=time.time()
 					#check if compass is in direction of forest sidewalk
-					if end1-start>20:
+                                        print 'heading ',heading
+					if end1-start>25:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()	
 			elif stage==20:
-				print "stage=20"
 				it=0
 				start = time.time()
 				end1=start
@@ -519,7 +578,7 @@ if __name__ == "__main__":
 				slope=-.5
 				b=10
 				while True:
-					print '------iteration '+str(it)+' ---------'
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
 					#check sonar. if true change behavior and break
@@ -539,18 +598,14 @@ if __name__ == "__main__":
 					
 					#set speed
 					print 'offset ',offset					
-					
 					car1.speed(55, -offset)
 
-					#if debug_mode==1:
-					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
 					end1=time.time()
 					if end1-start>20:
 						car1.stop()
 						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						exit()
 			elif stage==21:#turn right when allowed
-				print "stage=21"
 				it=0
 				start = time.time()
 				end1=start
@@ -558,7 +613,7 @@ if __name__ == "__main__":
 				turn=0#when >0 turn towards sidewalk, else turn away sidewalk 
 				ymax=220-135/5
 				while True:
-					print '------iteration '+str(it)+' ---------'
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					#perform white detection
 					rec.get_img()
 					#check for turn
@@ -583,8 +638,6 @@ if __name__ == "__main__":
 						car1.spin_left()
 						car1.speed(50, 0)
 					it+=1
-					#if debug_mode==1:
-					#	cv2.imwrite('debug/debug_img'+str(it)+'.jpg', rec.img)
 					end1=time.time()
 					if end1-start>20:
 						car1.stop()
