@@ -185,6 +185,34 @@ class car:
 		PWM.stop(self.left_wheel)
 		PWM.cleanup()
 
+class PID:
+	def __init__(self, P=20.0, I=30.0, D=10.0):
+		self.Kp=P
+		self.Ki=I
+		self.Kd=D
+		self.error_prev=0.0
+		self.Il=[0.0]
+		for x in range(0,5):
+			self.Il.append(0.0)
+	def update(self,error):
+		#calculate output
+		I=0
+		for x in self.Il:
+			I+=x
+		I=I/len(self.Il)
+		for x in range(0,len(self.Il)-1):
+			self.Il[x]=self.Il[x+1]
+		self.Il[-1]=error
+		P=self.Kp*error
+		I=self.Ki*I
+		D=self.Kd*(error-self.error_prev)
+		offset=P+I+D
+		self.error_prev=error
+		print 'P ',P
+		print 'I ',I
+		print 'D ',D
+		return offset
+
 def get_location():
 	global gps_position
 	while True:
@@ -309,21 +337,37 @@ if __name__ == "__main__":
 				start = time.time()
 				end1=start
 				car1.forward()
-				I=0
+				#I=0
+				#Il=[0.0]
+				#for x in range(0,5):
+				#	Il.append(0.0)
+				#error_prev=0
+				pid1=PID()
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
 					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
 					print 'error ', error
-					offset=30*error+40*I
-					print 'P ',str(30*error)
-					print 'I ',str(40*I)
+					#find I
+					#I=0
+					#for x in Il:
+					#	I+=x
+					#I=I/len(Il)
+					#for x in range(0,len(Il)-1):
+					#	Il[x]=Il[x+1]
+					#Il[-1]=error
+					#offset=30*error+40*I+20*(error-error_prev)
+					#offset=20*error+30*I+10*(error-error_prev)
+					offset=pid1.update(error)
+					#error_prev=error
+					#print 'P ',str(20*error)
+					#print 'I ',str(30*I)
 					#update I
 					it+=1
 					end=time.time()
 					period=(end-start)/it
-					I=.6*I+.4*error*(time.time()-end1)/period#multiply by change in time
+					#I=.6*I+.4*error*(time.time()-end1)/period#multiply by change in time
 
 					
 					#set speed
@@ -378,8 +422,8 @@ if __name__ == "__main__":
                                         elif section==1:
                                                 pwm=60
                                                 if heading>289 or heading<0:#338-20
-                                                        if offset>0:                                                       
-                                                                offset=0
+                                                        if offset>0:
+								offset=0
                                         else:
                                                 pwm=65
                                         print 'offset ',offset	                                        
@@ -462,13 +506,16 @@ if __name__ == "__main__":
 				end1=start
 				car1.forward()
 				I=0
+				error_prev=0
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
 					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
 					print 'error ', error
-					offset=40*error+30*I
+					#offset=40*error+30*I
+					offset=30*error+30*I+20*(error-error_prev)
+					error_prev=error
 					print 'P ',str(40*error)
 					print 'I ',str(30*I)
 					#update I
@@ -479,9 +526,9 @@ if __name__ == "__main__":
 
 					
 					#set speed based on time
-					pwm=55-(end-start)/2
-					if pwm<30:
-						pwm=30
+					pwm=55-((end-start)/2)
+					if pwm<45:
+						pwm=45
 					print 'offset ',offset					
 					car1.speed(pwm, -offset)#nominal 40
                                         print 'heading ',heading
