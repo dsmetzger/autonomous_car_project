@@ -56,8 +56,15 @@ class car:
 		PWM.stop(self.right_wheel)
 		PWM.stop(self.left_wheel)
 		PWM.cleanup()
-
-def get_incline():
+'''
+def get_incline():#accelerator
+	accel1=ADXL345()
+	global incline
+	incline=-10
+	while True:
+		incline=.1*accel1.getXAngle()+incline*.9
+		time.sleep(.1)'''
+def get_incline():#gyro
 	accel1=ADXL345()
 	global incline
 	incline=-10
@@ -73,9 +80,9 @@ if __name__ == "__main__":
 	#incline=-10
 	while True:
 		#incline=.1*accel1.getXAngle()+incline*.9
-		force_paralell=35*math.sin(math.radians(incline))
-		f_friction=35*.6*math.cos(math.radians(incline))
-		duty1=85*(math.sin(math.radians(incline))+.64*math.cos(math.radians(incline)))
+		force_paralell=50*math.sin(math.radians(incline))
+		f_friction=50*.5*math.cos(math.radians(incline))
+		duty1=110*(math.sin(math.radians(incline))+.5*math.cos(math.radians(incline)))
 		print 'incline ',incline
 		print 'F_para ',force_paralell
 		print 'F_fric ',f_friction
