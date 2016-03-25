@@ -60,9 +60,9 @@ def compass():
 	ymin=0
 	zmin=0
 	while True:
-		x_out = (read_word_2c(3) - x_offset) * 1.271859
-		y_out = (read_word_2c(7) - y_offset) * 1
-		z_out = (read_word_2c(5) - z_offset) * 1.183432
+		x_out = (read_word_2c(3) - x_offset)# * 1.271859
+		y_out = (read_word_2c(7) - y_offset)# * 1
+		z_out = (read_word_2c(5) - z_offset)# * 1.183432
 		h1  = math.atan2(y_out, x_out)
 		d1 = math.atan2(-z_out, math.sqrt(x_out**2+y_out**2)) 
 		#print 'x_out ',x_out		
@@ -92,12 +92,12 @@ def compass():
 			ymin=y_out
 		if z_out<zmin:
 			zmin=z_out
-		#print str((xmax+xmin)/2)
-		#print str((ymax+ymin)/2)
-		#print str((zmax+zmin)/2)
-		#print str((xmax-xmin)/2)
-		#print str((ymax-ymin)/2)
-		#print str((zmax-zmin)/2)
+		print str((xmax+xmin)/2)
+		print str((ymax+ymin)/2)
+		print str((zmax+zmin)/2)
+		print str((xmax-xmin)/2)
+		print str((ymax-ymin)/2)
+		print str((zmax-zmin)/2)
 		time.sleep(.05)
 
 
@@ -128,14 +128,20 @@ if __name__ == "__main__":
 	thread.start_new_thread(compass, ())
 	avg_lat=0.0
 	avg_lon=0.0
-	#test threads loop  	
-	while True:
+	#test threads loop
+	test=0
+	while test==0:
+		print 'heading ', heading
+		print 'incline ', incline
+		time.sleep(.05)
+	while test==1:
 		#print 'location', gps_position
 		print 'heading ', heading
 		print 'incline ', incline
 		time.sleep(.5)
 		avg_lat= .1*gps_position[0]+avg_lat*.9
-		avg_lat= .1*gps_position[1]+avg_lat*.9
+		avg_lon= .1*gps_position[1]+avg_lon*.9
 		print gps_position
+		print avg_lat, avg_lon
 		print gps_check(destination=[3849.7007, 7718.3796])
 		pass
