@@ -7,6 +7,7 @@ import Adafruit_BBIO.GPIO as GPIO
 import math
 import serial
 import Adafruit_BBIO.UART as UART
+from Adafruit_BNO055 import BNO055
 import smbus
 #compass
 bus = smbus.SMBus(1)
@@ -48,10 +49,12 @@ def compass():
 	write_byte(0, 0b01110000)
 	write_byte(1, 0b00100000)
 	write_byte(2, 0b00000000)
-	
-	x_offset = 18#9
-	y_offset = -95#-80
-	z_offset = -27#0
+	#old compass18#9
+	#-95#-80
+	#-27#0
+	x_offset = 0 
+	y_offset = 0
+	z_offset = 0
 	#for calibration
 	xmax=0
 	ymax=0
@@ -100,6 +103,39 @@ def compass():
 		print str((zmax-zmin)/2)
 		time.sleep(.05)
 
+def imu_compass():
+	global heading
+	x_offset = 3.5 
+	y_offset = .6
+	bno = BNO055.BNO055(rst='P9_12')
+	#for calibration
+	xmax=0
+	ymax=0
+	xmin=0
+	ymin=0
+	while True:
+		x_out,y_out,z_out = bno.read_magnetometer()
+		h1  = math.atan2(y_out+y_offset, x_out+x_offset)
+		
+		#print 'x_out ',x_out		
+		#print 'y_out ',y_out
+	        if (h1 < 0):
+		        h1 += 2 * math.pi
+		#for calibration
+		heading=math.degrees(h1)
+		if x_out>xmax:
+			xmax=x_out
+		if y_out>ymax:
+			ymax=y_out
+		if x_out<xmin:
+			xmin=x_out
+		if y_out<ymin:
+			ymin=y_out
+		print str((xmax+xmin)/2)
+		print str((ymax+ymin)/2)
+		print str((xmax-xmin)/2)
+		print str((ymax-ymin)/2)
+		time.sleep(.05)
 
 def get_location():
 	global gps_position
@@ -125,14 +161,15 @@ def gps_check(destination=coordinates[stage+1]):
 if __name__ == "__main__":
 	#Thread gps sonar and compass
 	thread.start_new_thread(get_location, ())
-	thread.start_new_thread(compass, ())
+	#thread.start_new_thread(compass, ())
+	thread.start_new_thread(imu_compass, ())
 	avg_lat=0.0
 	avg_lon=0.0
 	#test threads loop
 	test=0
 	while test==0:
 		print 'heading ', heading
-		print 'incline ', incline
+		#print 'incline ', incline
 		time.sleep(.05)
 	while test==1:
 		#print 'location', gps_position
