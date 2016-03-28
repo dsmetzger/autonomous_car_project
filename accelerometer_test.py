@@ -72,7 +72,7 @@ def get_incline():#gyro
 		incline=.1*accel1.getXAngle()+incline*.9
 		time.sleep(.1)
 if __name__ == "__main__":
-	thread.start_new_thread(get_incline, ())
+	#thread.start_new_thread(get_incline, ())
 	#accel1=ADXL345()
 	car1=car()
 	car1.forward()
@@ -80,14 +80,14 @@ if __name__ == "__main__":
 	#incline=-10
 	while True:
 		#incline=.1*accel1.getXAngle()+incline*.9
-		force_paralell=50*math.sin(math.radians(incline))
-		f_friction=50*.5*math.cos(math.radians(incline))
-		duty1=110*(math.sin(math.radians(incline))+.5*math.cos(math.radians(incline)))
-		print 'incline ',incline
-		print 'F_para ',force_paralell
-		print 'F_fric ',f_friction
-		print 'duty ',duty1
-		if duty1>70:
-			pass
-		car1.speed(duty=duty1)
+		#force_paralell=50*math.sin(math.radians(incline))
+		#f_friction=50*.5*math.cos(math.radians(incline))
+		#duty1=110*(math.sin(math.radians(incline))+.5*math.cos(math.radians(incline)))
+		#print 'incline ',incline
+		#print 'F_para ',force_paralell
+		#print 'F_fric ',f_friction
+		#print 'duty ',duty1
+		#if duty1>70:
+		#	pass
+		#car1.speed(duty=duty1)
 		time.sleep(1)
