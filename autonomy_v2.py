@@ -375,7 +375,7 @@ def gps_check(destination=coordinates[stage+1]):
                 return True
         else:
                 return False
-def follow_edge(side=0,input1=[16,13,8]):#1 foot, input1=[16, 11, 7]
+def follow_edge(side=0,input1=[16,14,8]):#1 foot, input1=[16, 11, 7]
 	l1=rec.wh_det_horizontal(x1=160,x2=320,y1=171,y2=110,xit=10,yit=-30,er_max=1)
 	print 'follow_edge list', l1
 	#set y=171 error, count should be above 16= 160 pixels
@@ -384,7 +384,7 @@ def follow_edge(side=0,input1=[16,13,8]):#1 foot, input1=[16, 11, 7]
 	e2=(l1[1]-input1[1])
 	#set y=111 error, count should be above 8= 80 pixels
 	e3=(l1[2]-input1[2])
-	error=(.5*e1+.3*e2+.2*e3)#should be around -.5 to .5
+	error=(.5*e1+.3*e2+.2*e3)
 	return error
 
 def edge_check():
@@ -835,7 +835,7 @@ if __name__ == "__main__":
 				end1=start
 				car1.forward()
 				#I=0
-				pid1=PID(P=15,I=20,D=0)
+				pid1=PID(P=7,I=10,D=0)
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
