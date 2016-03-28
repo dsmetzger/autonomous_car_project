@@ -375,17 +375,26 @@ def gps_check(destination=coordinates[stage+1]):
                 return True
         else:
                 return False
-def follow_edge(side=0):
+def follow_edge(side=0,input1=[16,13,8]):#1 foot, input1=[16, 11, 7]
 	l1=rec.wh_det_horizontal(x1=160,x2=320,y1=171,y2=110,xit=10,yit=-30,er_max=1)
 	print 'follow_edge list', l1
 	#set y=171 error, count should be above 16= 160 pixels
-	e1=(l1[0]-15)/15
+	e1=(l1[0]-input1[0])
 	#set y=141 error, count should be above 14= 140 pixels
-	e2=(l1[1]-13)/13
+	e2=(l1[1]-input1[1])
 	#set y=111 error, count should be above 8= 80 pixels
-	e3=(l1[2]-8)/8
-	error=.25*e1+.15*e2+.10*e3#limited -.5 to .5
+	e3=(l1[2]-input1[2])
+	error=(.5*e1+.3*e2+.2*e3)#should be around -.5 to .5
 	return error
+
+def edge_check():
+	l1=rec.wh_det(x1=100,x2=221,y1=220,y2=150,xit=40, yit=-5,er_max=2,slope_en=0)
+	print 'edge_check list', l1					
+	if l1[-1]<9 or l1[-2]<9 or l1[-3]<9:
+		print 'edge detected'
+		return 1
+	else:
+		return 0
 
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
@@ -826,7 +835,7 @@ if __name__ == "__main__":
 				end1=start
 				car1.forward()
 				#I=0
-				pid1=PID(P=15,I=15,D=0)
+				pid1=PID(P=15,I=20,D=0)
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
@@ -839,14 +848,17 @@ if __name__ == "__main__":
 					print 'inc_offset ', inc_offset
 					#check for edge
 					if edge_check():
+						#break
 						car1.speed(-20, offset)
-						time.sleep(.3)
+						time.sleep(.4)
+						#reverse
 						car1.speed(-50, -offset)
 						time.sleep(.2)
 					else:
+						#set speed
 						car1.speed(pwm1, offset)
 					end1=time.time()
-					if gps_check(coordinates[1]) or (end1-start)>30:
+					if (end1-start)>30:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
