@@ -375,18 +375,32 @@ def gps_check(destination=coordinates[stage+1]):
                 return True
         else:
                 return False
-def follow_edge(side=0,input1=[16,14,8]):#1 foot, input1=[16, 11, 7]
-	l1=rec.wh_det_horizontal(x1=160,x2=320,y1=171,y2=110,xit=10,yit=-30,er_max=1)
-	print 'follow_edge list', l1
-	#set y=171 error, count should be above 16= 160 pixels
-	e1=(l1[0]-input1[0])
-	#set y=141 error, count should be above 14= 140 pixels
-	e2=(l1[1]-input1[1])
-	#set y=111 error, count should be above 8= 80 pixels
-	e3=(l1[2]-input1[2])
-	error=(.5*e1+.3*e2+.2*e3)
-	return error
-
+def follow_edge(alg=0,input1=[16,14,8]):#1 foot, input1=[16, 11, 7]
+	if alg==0:
+		l1=rec.wh_det_horizontal(x1=160,x2=320,y1=171,y2=110,xit=10,yit=-30,er_max=1)
+		print 'follow_edge list', l1
+		#set y=171 error, count should be above 16= 160 pixels
+		e1=(l1[0]-input1[0])
+		#set y=141 error, count should be above 14= 140 pixels
+		e2=(l1[1]-input1[1])
+		#set y=111 error, count should be above 8= 80 pixels
+		e3=(l1[2]-input1[2])
+		error=(.3*e1+.4*e2+.3*e3)
+		return error
+	elif alg==1:#right side
+		#error based on distance and predicted distance
+		l1=rec.wh_det_horizontal(x1=200,x2=320,y1=151,y2=110,xit=10,yit=-20,er_max=1)
+		print 'follow_edge list', l1
+		#distance error
+		e1=(l1[0]-8)/8
+		e2=(l1[1]-6)/8
+		e3=(l1[2]-4)/8
+		#slope error
+		slope=((l1[2]-l1[0])/2)
+		e4=-4-slope
+		print 'slope ',slope
+		error=(.2*e1+.3*e2+.3*e3+.2*e4)
+		return error
 def edge_check():
 	l1=rec.wh_det(x1=100,x2=221,y1=220,y2=150,xit=40, yit=-5,er_max=2,slope_en=0)
 	print 'edge_check list', l1					
@@ -840,7 +854,7 @@ if __name__ == "__main__":
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
-					error=follow_edge()
+					error=follow_edge(alg=1)
 					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
@@ -858,7 +872,7 @@ if __name__ == "__main__":
 						#set speed
 						car1.speed(pwm1, offset)
 					end1=time.time()
-					if (end1-start)>30:#gps_check(coordinates[1])
+					if (end1-start)>60:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
