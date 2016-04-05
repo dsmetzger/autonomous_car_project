@@ -29,8 +29,8 @@ gps1 = serial.Serial("/dev/ttyO4", 4800)
 coordinates=[[3849.669975,7718.3229125],[3849.6589066667,7718.3471666667],[3849.7127, 7718.3901],[0.0,0.0],[0.0,0.0]]  #holds the waypoints to navigate to of signifigant turns. first waypoint is starting point
 gps_position=coordinates[0] #lat,lon
 
-state="test"  #the current state of the robot.
-stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+state="turn"  #the current state of the robot.
+stage=21  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
 
 object_detect=0 #thread the sonar
@@ -104,7 +104,7 @@ class recognition:
 				bgr=self.img[y,x]
                                 #if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>85 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
-				if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>100 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				if abs(int(bgr[1])-int(bgr[2]))<16 and int(bgr[0])>50 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
 		            			test+=1
@@ -197,7 +197,7 @@ class car:
 			print '  '
 		#smaller offset for high speeds, assumed top offset of 15
 		i=x/15#i between -1 and 1
-		mult=-.19*abs(duty)+25
+		mult=-.25*abs(duty)+30
 		#mult=-.199*abs(duty)+25
 		x=mult*i
 		print 'effective offset ', x
@@ -342,8 +342,17 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 		return error,slope_avg,b_avg
 	else:
 		pass
-def get_direction(t_compass=.2,t_gyro=.1):
+def get_direction(t_compass=.2,t_gyro=.2):
 	bno = BNO055.BNO055(rst='P9_12')
+	status, self_test, error = bno.get_system_status()
+	print('System status: {0}'.format(status))
+	print('Self test result (0x0F is normal): 0x{0:02X}'.format(self_test))
+	# Read the Euler angles for heading, roll, pitch (all in degrees).
+	heading, roll, pitch = bno.read_euler()
+	# Read the calibration status, 0=uncalibrated and 3=fully calibrated.
+	sys, gyro, accel, mag = bno.get_calibration_status()
+	# Print everything out.
+	print('Heading={0:0.2F} Roll={1:0.2F} Pitch={2:0.2F}\tSys_cal={3} Gyro_cal={4} Accel_cal={5} Mag_cal={6}'.format(heading, roll, pitch, sys, gyro, accel, mag))
 	global heading
 	global incline
 	global inc_offset
@@ -376,6 +385,10 @@ def get_direction(t_compass=.2,t_gyro=.1):
 		heading=math.degrees(h1)
 		#gyro
 		#angles
+		#bno.read_gyroscope()#angular velocity (degrees/sec)
+		#bno.read_linear_acceleration()
+		#bno.read_gravity()
+		#bno.read_quaternion()
 		pitch, incline1, yaw = bno.read_euler()
 		t_diff=time.time()-end2
 		end2=time.time()
@@ -439,6 +452,32 @@ def follow_edge(alg=0,input1=[16,14,8]):#1 foot, input1=[16, 11, 7]
 		print 'slope ',slope
 		error=(.2*e1+.3*e2+.3*e3+.2*e4)
 		return error
+	elif alg==2:#follow right side using list
+		#error based on distance and predicted distance
+		#l1=rec.wh_det(x1=200,x2=320,y1=151,y2=110,xit=10,yit=-20,er_max=1)
+		l1=rec.wh_det(x1=240,x2=320,y1=151,y2=150,xit=10,yit=-20,er_max=4)
+		l2=rec.wh_det(x1=200,x2=280,y1=111,y2=110,xit=10,yit=-20,er_max=4)
+		print 'list 1', l1
+		print 'list 2', l2
+		#distance error
+		sum1=0
+		sum2=0
+		for x in range(0,len(l1)):
+			if x<len(l1)/2:
+				sum1+=l1[x]
+			else:
+				sum2+=l1[x]
+		e1=.5-(sum1+1)/(sum1+sum2+2)
+		sum1=0
+		sum2=0
+		for x in range(0,len(l2)):
+			if x<len(l2)/2:
+				sum1+=l2[x]
+			else:
+				sum2+=l2[x]
+		e2=.5-(sum1+1)/(sum1+sum2+2)
+		error=(.5*e1+.5*e2)
+		return error
 def edge_check():
 	l1=rec.wh_det(x1=100,x2=221,y1=220,y2=150,xit=40, yit=-5,er_max=2,slope_en=0)
 	print 'edge_check list', l1					
@@ -448,7 +487,7 @@ def edge_check():
 	else:
 		print '  '
 		return 0
-def turn_speed_check(offset,turn_limit=10):
+def turn_speed_check(offset,turn_limit=18):
 	print 'yaw_rate ',yaw_rate
 	if (offset>0 and yaw_rate>turn_limit) or (offset<0 and yaw_rate<(-turn_limit)):
 		print 'turn speed limited'
@@ -880,11 +919,11 @@ if __name__ == "__main__":
 					if turn ==1:
 						print 'turn right'
 						car1.forward()
-						car1.speed(50, -15)
+						car1.speed(40, 15)
 					elif turn== -1:
 						print 'turn left'
 						car1.spin_left()
-						car1.speed(50, 0)
+						car1.speed(40, 0)
 					it+=1
 					end1=time.time()
 					if end1-start>40:
@@ -900,12 +939,15 @@ if __name__ == "__main__":
 				end1=start
 				car1.forward()
 				#I=0
-				pid1=PID(P=7,I=10,D=0)
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=14,I=15,D=2)
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
-					error=follow_edge(alg=1)
+					#error=follow_edge(alg=1)
+					error=follow_most_pixels(10,-7,alg=1)
+					
 					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
@@ -923,10 +965,48 @@ if __name__ == "__main__":
 					#else:
 					#	#set speed
 					#	car1.speed(pwm1, offset)
-					offset=turn_speed_check(offset)
-					car1.speed(pwm1, offset)
+					#offset=turn_speed_check(offset)
+					car1.speed(pwm1-17, offset)
 					end1=time.time()
-					if (end1-start)>60:#gps_check(coordinates[1])
+					if (end1-start)>600:#gps_check(coordinates[1])
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="turn"
+						break
+			elif stage==1:
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				#I=0
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=15,I=15,D=2)
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					error=follow_edge(alg=2)
+					print 'error ', error
+					offset=pid1.update(error)
+					it+=1
+					print 'incline ', incline
+					print 'inc_offset ', inc_offset
+					print 'heading', heading
+					#check for edge
+					#if edge_check():
+					#	#break
+					#	car1.speed(-20, offset)
+					#	time.sleep(.4)
+					#	#reverse
+					#	car1.speed(-50, -offset)
+					#	time.sleep(.2)
+					#else:
+					#	#set speed
+					#	car1.speed(pwm1, offset)
+					#offset=turn_speed_check(offset)
+					car1.speed(pwm1-10, offset)
+					end1=time.time()
+					if (end1-start)>600:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
