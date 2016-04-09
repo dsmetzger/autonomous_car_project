@@ -29,14 +29,14 @@ gps1 = serial.Serial("/dev/ttyO4", 4800)
 coordinates=[[3849.669975,7718.3229125],[3849.6589066667,7718.3471666667],[3849.7127, 7718.3901],[0.0,0.0],[0.0,0.0]]  #holds the waypoints to navigate to of signifigant turns. first waypoint is starting point
 gps_position=coordinates[0] #lat,lon
 
-state="turn"  #the current state of the robot.
-stage=21  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+state="test"  #the current state of the robot.
+stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
 
 object_detect=0 #thread the sonar
 heading =0.0
 incline =0.0
-inc_offset=0.0#set at certain stages
+inc_offset=1.0#set at certain stages
 yaw_rate=0.0 #radians per sec
 pwm1=0.0
 
@@ -213,14 +213,38 @@ class car:
 		else:
 			GPIO.output(self.right_wheel_dir, GPIO.HIGH)
 		PWM.set_duty_cycle(self.left_wheel, abs(l_speed))
-		PWM.set_duty_cycle(self.right_wheel, abs(r_speed))	
+		PWM.set_duty_cycle(self.right_wheel, abs(r_speed))
+	def speed1(self, duty=55, offset=0):
+		print 'duty ',duty
+		if duty>75 or duty<-20:
+			print 'bad pwm'
+			return
+		else:
+			print '  '
+		#check if negative
+		l_speed=duty+offset
+		r_speed=duty-offset
+		if l_speed<0:#negative speed, reverse
+			GPIO.output(self.left_wheel_dir, GPIO.LOW)
+		elif l_speed>80:#check if speed too high
+			l_speed=80
+		else:
+			GPIO.output(self.left_wheel_dir, GPIO.HIGH)
+		if r_speed<0:#negative speed, reverse
+			GPIO.output(self.right_wheel_dir, GPIO.LOW)
+		elif r_speed>80:#check if speed too high
+			r_speed=80
+		else:
+			GPIO.output(self.right_wheel_dir, GPIO.HIGH)
+		PWM.set_duty_cycle(self.left_wheel, abs(l_speed))
+		PWM.set_duty_cycle(self.right_wheel, abs(r_speed))
 	def stop(self):
 		PWM.stop(self.right_wheel)
 		PWM.stop(self.left_wheel)
 		PWM.cleanup()
 
 class PID:
-	def __init__(self, P=12.0, I=15.0, D=3.0,I_lim=3):
+	def __init__(self, P=12.0, I=15.0, D=3.0,I_lim=4):
 		self.Kp=P
 		self.Ki=I
 		self.Kd=D
@@ -343,7 +367,10 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 	else:
 		pass
 def get_direction(t_compass=.2,t_gyro=.2):
-	bno = BNO055.BNO055(rst='P9_12')
+	data=[26, 0, 254, 255, 33, 0, 159, 253, 217, 0, 244, 255, 255, 255, 0, 0, 1, 0, 232, 3, 88, 1]
+	bno = BNO055.BNO055(rst='P8_4')
+	bno.begin()
+	bno.set_calibration(data)
 	status, self_test, error = bno.get_system_status()
 	print('System status: {0}'.format(status))
 	print('Self test result (0x0F is normal): 0x{0:02X}'.format(self_test))
@@ -355,17 +382,15 @@ def get_direction(t_compass=.2,t_gyro=.2):
 	print('Heading={0:0.2F} Roll={1:0.2F} Pitch={2:0.2F}\tSys_cal={3} Gyro_cal={4} Accel_cal={5} Mag_cal={6}'.format(heading, roll, pitch, sys, gyro, accel, mag))
 	global heading
 	global incline
-	global inc_offset
 	global yaw_rate
 	end1=0.0
 	end2=0.0
-	yaw_old=0.0
 	while True:
 		#get compass heading
 		x,y,z = bno.read_magnetometer()
 		t_diff=time.time()-end1
 		end1=time.time()
-		h1  = math.atan2((1.0722*(y+0.6)), (x+3.5))
+		h1  = math.atan2(y, x)
 		#average compass results
 		x1=math.cos(h1)
 		x2=math.cos(math.radians(heading))
@@ -385,36 +410,37 @@ def get_direction(t_compass=.2,t_gyro=.2):
 		heading=math.degrees(h1)
 		#gyro
 		#angles
-		#bno.read_gyroscope()#angular velocity (degrees/sec)
-		#bno.read_linear_acceleration()
+		x,y,yaw_rate_new=bno.read_gyroscope()#angular velocity (degrees/sec)
+		#print 'l_accel,', bno.read_linear_acceleration()
 		#bno.read_gravity()
-		#bno.read_quaternion()
 		pitch, incline1, yaw = bno.read_euler()
 		t_diff=time.time()-end2
 		end2=time.time()
 		#incline=.05*(incline1-inc_offset)+incline*.95
-		x1=math.cos(yaw)
-		x2=math.cos(yaw_old)
-		y1=math.sin(yaw)
-		y2=math.sin(yaw_old)
-		yaw_rate_n=math.atan2((y1-y2),(x1-x2))/t_diff
-		yaw_old=yaw
+		#x1=math.cos(yaw)
+		#x2=math.cos(yaw_old)
+		#y1=math.sin(yaw)
+		#y2=math.sin(yaw_old)
+		#yaw_rate_n=math.atan2((y1-y2),(x1-x2))/t_diff
+		#yaw_old=yaw
 		#print 'yaw rate ',yaw_rate_n
 		#print str(t_diff/t_gyro)
 		#print str((t_gyro-t_diff)/t_gyro)
 		if t_diff<t_gyro:
-			incline=((t_diff)*(incline1-inc_offset)+incline*(t_gyro-t_diff))/t_gyro
-			yaw_rate=((t_diff)*(yaw_rate_n)+yaw_rate*(t_gyro-t_diff))/t_gyro
+			incline=((t_diff)*(incline1)+incline*(t_gyro-t_diff))/t_gyro
+			yaw_rate=((t_diff)*(yaw_rate_new*(-180/math.pi))+yaw_rate*(t_gyro-t_diff))/t_gyro
 		else:
-			incline=(incline1-inc_offset)
-			yaw_rate=yaw_rate_n
-		time.sleep(.01)
+			incline=(incline1)
+			yaw_rate=yaw_rate_new
+		time.sleep(.009)
+		#time.sleep(.09)
 def set_speed():
 	global pwm1
 	while True:
 		#force_paralell=50*math.sin(math.radians(incline))
 		#f_friction=50*.5*math.cos(math.radians(incline))
-		pwm1=500*(math.sin(math.radians(incline))+.11*math.cos(math.radians(incline)))
+		fixed_incline=incline-inc_offset
+		pwm1=340*(math.sin(math.radians(fixed_incline))+.15*math.cos(math.radians(fixed_incline)))
 		#print 'incline ',incline
 		#print 'F_para ',force_paralell
 		#print 'F_fric ',f_friction
@@ -455,28 +481,33 @@ def follow_edge(alg=0,input1=[16,14,8]):#1 foot, input1=[16, 11, 7]
 	elif alg==2:#follow right side using list
 		#error based on distance and predicted distance
 		#l1=rec.wh_det(x1=200,x2=320,y1=151,y2=110,xit=10,yit=-20,er_max=1)
-		l1=rec.wh_det(x1=240,x2=320,y1=151,y2=150,xit=10,yit=-20,er_max=4)
-		l2=rec.wh_det(x1=200,x2=280,y1=111,y2=110,xit=10,yit=-20,er_max=4)
-		print 'list 1', l1
+		#l1=rec.wh_det(x1=240,x2=320,y1=151,y2=150,xit=10,yit=-20,er_max=4)
+		l2=rec.wh_det(x1=235,x2=315,y1=101,y2=100,xit=5,yit=-20,er_max=4)
+		#print 'list 1', l1
 		print 'list 2', l2
 		#distance error
+		#sum1=0
+		#sum2=0
+		#for x in range(0,len(l1)):
+		#	sum1+=l1[x]
+			#if x<len(l1)/2:
+			#	sum1+=l1[x]
+			#else:
+			#	sum2+=l1[x]
+		#e1=.5-(sum1+1)/(sum1+sum2+2)
+		#e1=float(sum1)/len(l1)-.5
 		sum1=0
-		sum2=0
-		for x in range(0,len(l1)):
-			if x<len(l1)/2:
-				sum1+=l1[x]
-			else:
-				sum2+=l1[x]
-		e1=.5-(sum1+1)/(sum1+sum2+2)
-		sum1=0
-		sum2=0
+		#sum2=0
 		for x in range(0,len(l2)):
-			if x<len(l2)/2:
-				sum1+=l2[x]
-			else:
-				sum2+=l2[x]
-		e2=.5-(sum1+1)/(sum1+sum2+2)
-		error=(.5*e1+.5*e2)
+			sum1+=l2[x]
+		#	if x<len(l2)/2:
+		#		sum1+=l2[x]
+		#	else:
+		#		sum2+=l2[x]
+		#e2=.5-(sum1+1)/(sum1+sum2+1)
+		e2=float(sum1)/len(l2)-.5
+		error=(e2)
+		#error=(.5*e1+.5*e2)
 		return error
 def edge_check():
 	l1=rec.wh_det(x1=100,x2=221,y1=220,y2=150,xit=40, yit=-5,er_max=2,slope_en=0)
@@ -513,10 +544,8 @@ if __name__ == "__main__":
 		#print yaw_rate
 	#	print heading
 	#	pass
-	time.sleep(2)
+	time.sleep(5)
 	#set gyro offset on start
-	global inc_offset
-	inc_offset=incline
 	while True:
 		if state=='drive':
 			if stage==0:
@@ -966,45 +995,36 @@ if __name__ == "__main__":
 					#	#set speed
 					#	car1.speed(pwm1, offset)
 					#offset=turn_speed_check(offset)
-					car1.speed(pwm1-17, offset)
+					car1.speed(pwm1, offset)
 					end1=time.time()
 					if (end1-start)>600:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
 						break
-			elif stage==1:
+			elif stage==1:#control car using new edge follower, use control system for angular velocity
 				it=0
 				start = time.time()
 				end1=start
 				car1.forward()
 				#I=0
 				#pid1=PID(P=10,I=15,D=0)
-				pid1=PID(P=15,I=15,D=2)
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
-					error=follow_edge(alg=2)
+					err=follow_edge(alg=2)
+					print 'err ',err
+					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					error=(vel_in-yaw_rate)
 					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset
+					print 'incline ', str(incline-inc_offset)
 					print 'heading', heading
-					#check for edge
-					#if edge_check():
-					#	#break
-					#	car1.speed(-20, offset)
-					#	time.sleep(.4)
-					#	#reverse
-					#	car1.speed(-50, -offset)
-					#	time.sleep(.2)
-					#else:
-					#	#set speed
-					#	car1.speed(pwm1, offset)
-					#offset=turn_speed_check(offset)
-					car1.speed(pwm1-10, offset)
+					#car1.speed1(pwm1, offset)
 					end1=time.time()
 					if (end1-start)>600:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
