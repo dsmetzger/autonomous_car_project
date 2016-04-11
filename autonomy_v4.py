@@ -12,25 +12,15 @@ import sys
 import os
 #imu
 from Adafruit_BNO055 import BNO055
-#old compass
-#slots = "/sys/devices/bone_capemgr.9/slots"
-#os.system("echo BB-I2C1 > %s" % slots)
-#bus = smbus.SMBus(2)
-#address = 0x1e
-#thread locks
-hlock = thread.allocate_lock()
-ilock = thread.allocate_lock()
 
 #gps
 UART.setup("UART4")
 gps1 = serial.Serial("/dev/ttyO4", 4800)
-#38.82764204,-77.30581341
-# section 1 end [3849.7124, 7718.3908]
 coordinates=[[3849.669975,7718.3229125],[3849.6589066667,7718.3471666667],[3849.7127, 7718.3901],[0.0,0.0],[0.0,0.0]]  #holds the waypoints to navigate to of signifigant turns. first waypoint is starting point
 gps_position=coordinates[0] #lat,lon
 
-state="test"  #the current state of the robot.
-stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+state="drive"  #the current state of the robot.
+stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
 
 object_detect=0 #thread the sonar
@@ -467,14 +457,20 @@ def turn_speed_check(offset,turn_limit=18):
 	else:
 		print '    '
 		return offset
-def compass_check(use_incline=0,inc_lookup, compass_lookup):
-	if use_incline=1:
-		if abs(inc_lookup-incline)<.7:
+def compass_check(use_incline=0,inc_lookups, compass_lookups):
+	for x in range(0, len(inc_lookups)):
+		inc_lookup=inc_lookups[x]
+		compass_lookup=compass_lookups[x]
+		if use_incline=1:
+			if abs(inc_lookup-incline)<.7:
+				if abs(compass_lookup-heading)<5:
+					print 'comp cond 1 at ',heading,',',incline
+					return 1
+		else:
 			if abs(compass_lookup-heading)<5:
+				print 'comp cond 2 at ',heading
 				return 1
-	else:
-		if abs(compass_lookup-heading)<5:
-			return 1
+	print ' '
 	return 0
 
 if __name__ == "__main__":
@@ -483,20 +479,15 @@ if __name__ == "__main__":
 	rec.get_img()
 	rec.sample()
 	car1=car()
-	#while True:
-	#	bno = BNO055.BNO055(rst='P9_12')
-	#	print bno.get_calibration_status()
 	#Thread gps sonar and compass
 	thread.start_new_thread(get_location, ())
-	#thread.start_new_thread(compass, ())
 	thread.start_new_thread(get_direction, ())
 	thread.start_new_thread(set_speed, ())
 	#while True:
-		#print yaw_rate
+	#	print yaw_rate
 	#	print heading
 	#	pass
 	time.sleep(5)
-	#set gyro offset on start
 	while True:
 		if state=='drive':
 			if stage==0:
@@ -505,210 +496,29 @@ if __name__ == "__main__":
 				end1=start
 				car1.forward()
 				#I=0
-				pid1=PID(P=15,I=15,D=0)
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
-					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
-					#print 'error ', error
+					err=follow_edge(alg=2)
+					print 'err ',err
+					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					error=(vel_in-yaw_rate)
+					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset
-					#camera limit
-					l1=rec.wh_det(x1=160,x2=161,y1=150,y2=90,xit=40, yit=-5,er_max=1,slope_en=0)
-					print 'edge close list', l1					
-					if l1[-1]< 11:
-						if offset>0:
-							offset=-7
-					#compass limit
-					print 'heading ',heading
-					if heading>279 and heading<360:
-						if offset>0:
-							offset=-7
-					#check for edge
-					if edge_check():
-						car1.speed(-20, offset)
-						time.sleep(.3)
-						car1.speed(-40, -offset)
-						time.sleep(.4)
-					else:
-						car1.speed(pwm1, offset)
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					#car1.speed1(pwm1, offset)
 					end1=time.time()
-					if gps_check(coordinates[1]) or (end1-start)>30:
+					if (end1-start)>140 or gps_check(coordinates[1]):
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
-						break
-			elif stage==1:
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				#I=0
-				pid1=PID(P=15,I=15,D=0)
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					rec.get_img()
-					#check sonar. if true change behavior and break
-					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
-					print 'error ', error
-					offset=pid1.update(error)
-					it+=1
-					#set speed
-					print 'heading ', heading
-					#check for offset=0
-					#camera limit
-					l1=rec.wh_det(x1=160,x2=161,y1=150,y2=90,xit=40, yit=-5,er_max=1,slope_en=0)
-					print 'edge close list', l1					
-					if l1[-1]< 11:
-						if offset>-5:
-							offset=-4*(11-l1[-1])
-					#compass limit
-					#if heading>333 or heading<50:#old compass
-					if heading>35 and heading<100:
-						if offset>0:
-							offset=0
-					if heading>200 and heading <305:
-						if offset<0:
-							offset=0
-                                        print 'offset ',offset
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset    
-					#check for edge
-					if edge_check():
-						car1.speed(-20, offset)
-						time.sleep(.3)
-						car1.speed(-40, -offset)
-						time.sleep(.4)
-					else:
-						car1.speed(pwm1, offset)    
-					end1=time.time()
-					if gps_check([3849.6998, 7718.3833]):#coordinates[2]
-                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to turn stage ',stage
-						global state
-						state='turn'
-						break
-			elif stage==2:
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				car1.speed(pwm1, 0)
-				turn=0
-				while True:#go till edge is detected
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					#perform white detection
-					rec.get_img()
-					l1=rec.wh_det(x1=0,x2=121,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
-					print l1
-					#check sonar. if true change behavior and break
-					it+=1
-					end1=time.time()
-					if l1[-1]< 20 or l1[-2]<18:
-						turn+=1
-					if turn ==3:
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to turn stage 2'
-						global state
-						state='turn'
-						car1.speed(0, 5)
-                                                break
-						
-			elif stage==3:
-				it=0
-				start = time.time()
-				car1.forward()
-				pid1=PID(P=20,I=50)
-				while True:
-					print '-----'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					#perform white detection
-					rec.get_img()
-					#check sonar. if true change behavior and break
-					#check gps for change to turn state
-					error=follow_most_pixels(xit=10,yit=-10, alg=3)
-					print 'error ', error
-					it+=1
-					offset=pid1.update(error)
-					#set speed
-					print 'offset ',offset					
-					car1.speed(60, offset)
-					end1=time.time()
-					if gps_check():
-                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to turn stage ',stage
-						global state
-						state='turn'
-						break
-			elif stage==4:
-				it=0
-				start = time.time()
-				car1.forward()
-				pid1=PID(P=15,I=15)
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					#perform white detection
-					rec.get_img()
-					#check sonar. if true change behavior and break
-					#check gps for change to turn state
-					error=follow_most_pixels(xit=10,yit=-10, alg=3)
-					print 'error ', error
-					it+=1
-					offset=pid1.update(error)
-					#set speed
-					print 'offset ',offset					
-					car1.speed(65, offset)
-					end1=time.time()
-					if gps_check(coordinates[5]):
-                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to turn stage ',stage
-						global state
-						state='turn'
-						break
-			elif stage==99:#end stage
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				#I=0
-				pid1=PID(P=15,I=15,D=0)
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					rec.get_img()
-					#check sonar. if true change behavior and break
-					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=2)
-					#print 'error ', error
-					offset=pid1.update(error)
-					it+=1
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset
-					#camera limit
-					l1=rec.wh_det(x1=160,x2=161,y1=150,y2=90,xit=40, yit=-5,er_max=1,slope_en=0)
-					print 'edge close list', l1					
-					if l1[-1]< 11:
-						if offset>0:
-							offset=-7
-					#compass limit
-					print 'heading ',heading
-					if heading>279 and heading<360:
-						if offset>0:
-							offset=-7
-					#check for edge
-					#if edge_check():
-					#	car1.speed(-20, offset)
-					#	time.sleep(.3)
-					#	car1.speed(-pwm1, offset)
-					#	time.sleep(.4)
-					#else:
-					car1.speed(pwm1, offset)
-					end1=time.time()
-					if gps_check(coordinates[1]) or (end1-start)>20:
-                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						global state
-						state="turn"
-						break
+						break			
 		elif state=='turn':
 			if stage==0:
 				it=0
@@ -716,200 +526,29 @@ if __name__ == "__main__":
 				end1=start
 				car1.forward()
 				#I=0
-				pid1=PID(P=15,I=15,D=0)
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
 				while True:
 					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
 					rec.get_img()
 					#check sonar. if true change behavior and break
-					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
-					#print 'error ', error
-					offset=pid1.update(error)
-					it+=1
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset
-					#camera limit
-					l1=rec.wh_det(x1=160,x2=161,y1=160,y2=100,xit=40, yit=-5,er_max=1,slope_en=0)
-					print 'edge close list', l1					
-					if l1[-1]< 11:
-						if offset>-5:
-							offset=-4*(12-l1[-1])
-					#compass limit
-					print 'heading ',heading
-					#check for edge
-					#if edge_check():
-					#	car1.speed(-20, offset)
-					#	time.sleep(.3)
-					#	car1.speed(-pwm1, offset)
-					#	time.sleep(.4)
-					#else:
-					car1.speed(pwm1, offset)
-					end1=time.time()
-					if heading>330:
-                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to drive stage 1'
-						global stage
-						global state
-						state="drive"
-						stage=1
-						break
-			elif stage==1:
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				#I=0
-				pid1=PID(P=15,I=15,D=0)
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					rec.get_img()
-					#check sonar. if true change behavior and break
-					error=follow_most_pixels(xit=5,yit=-5,inp=.5,alg=1)
-					#print 'error ', error
-					offset=pid1.update(error)
-					it+=1
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset
-					#camera limit
-					l1=rec.wh_det(x1=160,x2=161,y1=150,y2=90,xit=40, yit=-5,er_max=1,slope_en=0)
-					print 'edge close list', l1					
-					if l1[1]< 11:
-						if offset>-5:
-							offset=-4*(11-l1[1])
-					#compass limit
-					print 'heading ',heading
-					#check for edge
-					#if edge_check():
-					#	car1.speed(-20, offset)
-					#	time.sleep(.3)
-					#	car1.speed(-pwm1, offset)
-					#	time.sleep(.4)
-					#else:
-					car1.speed(pwm1, offset)
-					end1=time.time()
-					if heading>50 and heading<100:
-                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to drive stage 2'
-						global stage
-						global state
-						state="drive"
-						stage=2
-						break
-			elif stage==2:#turn left when allowed #stage 2 turn into forest area
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				turn=-1#when >0 turn towards sidewalk, else turn away sidewalk
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					rec.get_img()
-					#check for turn
-					#count=rec.wh_det_horizontal(x1=160,x2=320,y1=200,y2=180,xit=10,yit=-10,er_max=2)
-					l1=rec.wh_det(x1=0,x2=121,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
-					print l1	
-					#check sonar. if true change behavior and break
-					#check gps for change to turn state					
-					if l1[-1] > 16 and l1[-2]>18:
-						if turn<3:
-							turn+=1
-					else:
-						if turn>-3:
-							turn-=1
-					#set speed					
-					if turn ==1:
-						print 'turn left'
-						car1.forward()
-						car1.speed(pwm1, 15)
-					elif turn== -1:
-						print 'turn right'
-						car1.spin_right()
-						car1.speed(pwm1, 0)
-					it+=1
-					end1=time.time()
-					#check if compass is in direction of forest sidewalk
-                                        print 'heading ',heading
-					if heading<360 and heading>200:
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						print 'change to drive stage 3'
-						global stage
-						global state
-						state="drive"
-						stage=3
-						break	
-			elif stage==20:
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				I=0
-				slope=-.5
-				b=10
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					#perform white detection
-					rec.get_img()
-					#check sonar. if true change behavior and break
-					#check gps for change to turn state
-					error,slope,b=control_distance(5,-5,dist=40,slope=slope,b=b)
-					print 'slope ', slope					
+					err=follow_edge(alg=2)
+					print 'err ',err
+					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					error=(vel_in-yaw_rate)
 					print 'error ', error
-					offset=50*error+50*I
-					print 'P ',str(50*error)
-					print 'I ',str(50*I)
-					#update I
+					offset=pid1.update(error)
 					it+=1
-					end=time.time()
-					period=(end-start)/it
-					I=.6*I+.4*error*(time.time()-end1)/period#multiply by change in time
-
-					
-					#set speed
-					print 'offset ',offset					
-					car1.speed(55, offset)
-
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					#car1.speed1(pwm1, offset)
 					end1=time.time()
-					if end1-start>40:
-						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()
-			elif stage==21:#turn right when allowed
-				it=0
-				start = time.time()
-				end1=start
-				car1.forward()
-				turn=0#when >0 turn towards sidewalk, else turn away sidewalk 
-				ymax=220-135/5
-				while True:
-					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
-					#perform white detection
-					rec.get_img()
-					#check for turn
-					#count=rec.wh_det_horizontal(x1=160,x2=320,y1=200,y2=180,xit=10,yit=-10,er_max=2)
-					l1=rec.wh_det(x1=119,x2=320,y1=220,y2=90,xit=120, yit=-5,er_max=2,slope_en=0)
-					print l1	
-					#check sonar. if true change behavior and break
-					#check gps for change to turn state					
-					if l1[-1] > 22 and l1[-2]>20:
-						if turn<3:
-							turn+=1
-					else:
-						if turn>-3:
-							turn-=1
-					#set speed					
-					if turn ==1:
-						print 'turn right'
-						car1.forward()
-						car1.speed(40, 15)
-					elif turn== -1:
-						print 'turn left'
-						car1.spin_left()
-						car1.speed(40, 0)
-					it+=1
-					end1=time.time()
-					if end1-start>40:
-						car1.stop()
-						print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
-						exit()	
+					if (end1-start)>140 or gps_check(coordinates[1]):
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="turn"
+						break		
 		elif state=='ob_det':
 			pass
 		elif state=='test':
@@ -931,21 +570,8 @@ if __name__ == "__main__":
 					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
-					print 'incline ', incline
-					print 'inc_offset ', inc_offset
+					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
-					#check for edge
-					#if edge_check():
-					#	#break
-					#	car1.speed(-20, offset)
-					#	time.sleep(.4)
-					#	#reverse
-					#	car1.speed(-50, -offset)
-					#	time.sleep(.2)
-					#else:
-					#	#set speed
-					#	car1.speed(pwm1, offset)
-					#offset=turn_speed_check(offset)
 					car1.speed(pwm1, offset)
 					end1=time.time()
 					if (end1-start)>600:#gps_check(coordinates[1])
@@ -973,7 +599,7 @@ if __name__ == "__main__":
 					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
-					print 'incline ', str(incline-inc_offset)
+					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
 					#car1.speed1(pwm1, offset)
 					end1=time.time()
