@@ -39,6 +39,7 @@ incline =0.0
 inc_offset=1.0#set at certain stages
 yaw_rate=0.0 #radians per sec
 pwm1=0.0
+yaw=0.0
 
 '''
 def read_word(adr):
@@ -383,6 +384,7 @@ def get_direction(t_compass=.2,t_gyro=.2):
 	global heading
 	global incline
 	global yaw_rate
+	global yaw
 	end1=0.0
 	end2=0.0
 	while True:
@@ -413,7 +415,7 @@ def get_direction(t_compass=.2,t_gyro=.2):
 		x,y,yaw_rate_new=bno.read_gyroscope()#angular velocity (degrees/sec)
 		#print 'l_accel,', bno.read_linear_acceleration()
 		#bno.read_gravity()
-		pitch, incline1, yaw = bno.read_euler()
+		pitch, incline1, yaw1 = bno.read_euler()
 		t_diff=time.time()-end2
 		end2=time.time()
 		#incline=.05*(incline1-inc_offset)+incline*.95
@@ -429,9 +431,11 @@ def get_direction(t_compass=.2,t_gyro=.2):
 		if t_diff<t_gyro:
 			incline=((t_diff)*(incline1)+incline*(t_gyro-t_diff))/t_gyro
 			yaw_rate=((t_diff)*(yaw_rate_new*(-180/math.pi))+yaw_rate*(t_gyro-t_diff))/t_gyro
+			yaw=((t_diff)*(yaw1*(-180/math.pi))+yaw*(t_gyro-t_diff))/t_gyro
 		else:
 			incline=(incline1)
 			yaw_rate=yaw_rate_new
+			yaw=yaw1
 		time.sleep(.009)
 		#time.sleep(.09)
 def set_speed():
