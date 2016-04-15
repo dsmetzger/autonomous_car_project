@@ -19,8 +19,8 @@ gps1 = serial.Serial("/dev/ttyO4", 4800)
 coordinates=[[3849.669975,7718.3229125],[3849.6589066667,7718.3471666667],[3849.7127, 7718.3901],[0.0,0.0],[0.0,0.0]]  #holds the waypoints to navigate to of signifigant turns. first waypoint is starting point
 gps_position=coordinates[0] #lat,lon
 
-state="drive"  #the current state of the robot.
-stage=0  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+state="test"  #the current state of the robot.
+stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
 
 object_detect=0 #thread the sonar
@@ -134,38 +134,6 @@ class car:
 		GPIO.output(self.right_wheel_dir, GPIO.LOW)
 		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
 	def speed(self, duty=55, offset=0):
-		if offset>15:
-			x=15
-		elif offset<-15:
-			x=-15
-		else:
-			x=offset
-		print 'duty ',duty
-		if duty>75 or duty<-20:
-			print 'bad pwm'
-			return
-		else:
-			print '  '
-		#smaller offset for high speeds, assumed top offset of 15
-		i=x/15#i between -1 and 1
-		mult=-.25*abs(duty)+30
-		#mult=-.199*abs(duty)+25
-		x=mult*i
-		print 'effective offset ', x
-		#check if negative
-		l_speed=duty+x
-		r_speed=duty-x
-		if l_speed<0:#negative speed, reverse
-			GPIO.output(self.left_wheel_dir, GPIO.LOW)
-		else:
-			GPIO.output(self.left_wheel_dir, GPIO.HIGH)
-		if r_speed<0:#negative speed, reverse
-			GPIO.output(self.right_wheel_dir, GPIO.LOW)
-		else:
-			GPIO.output(self.right_wheel_dir, GPIO.HIGH)
-		PWM.set_duty_cycle(self.left_wheel, abs(l_speed))
-		PWM.set_duty_cycle(self.right_wheel, abs(r_speed))
-	def speed1(self, duty=55, offset=0):
 		print 'duty ',duty
 		if duty>75 or duty<-20:
 			print 'bad pwm'
@@ -177,14 +145,20 @@ class car:
 		r_speed=duty-offset
 		if l_speed<0:#negative speed, reverse
 			GPIO.output(self.left_wheel_dir, GPIO.LOW)
-		elif l_speed>80:#check if speed too high
-			l_speed=80
+			if l_speed<-20:
+				l_speed=-20
+		elif l_speed>85:#check if speed too high
+			l_speed=85
+			GPIO.output(self.left_wheel_dir, GPIO.HIGH)
 		else:
 			GPIO.output(self.left_wheel_dir, GPIO.HIGH)
 		if r_speed<0:#negative speed, reverse
 			GPIO.output(self.right_wheel_dir, GPIO.LOW)
-		elif r_speed>80:#check if speed too high
-			r_speed=80
+			if r_speed<-20:
+				r_speed=-20
+		elif r_speed>85:#check if speed too high
+			r_speed=85
+			GPIO.output(self.right_wheel_dir, GPIO.HIGH)
 		else:
 			GPIO.output(self.right_wheel_dir, GPIO.HIGH)
 		PWM.set_duty_cycle(self.left_wheel, abs(l_speed))
@@ -457,13 +431,18 @@ def turn_speed_check(offset,turn_limit=18):
 	else:
 		print '    '
 		return offset
-def compass_check(use_incline=0,inc_lookups, compass_lookups):
+def compass_check(offset,inc_lookups, compass_lookups,use_incline=0):
 	for x in range(0, len(inc_lookups)):
 		inc_lookup=inc_lookups[x]
 		compass_lookup=compass_lookups[x]
-		if use_incline=1:
+		x1=math.cos(inc_lookup)
+		x2=math.cos(math.radians(compass_lookup))
+		y1=math.sin(inc_lookup)
+		y2=math.sin(math.radians(compass_lookup))
+		diff=0
+		if use_incline==1:
 			if abs(inc_lookup-incline)<.7:
-				if abs(compass_lookup-heading)<5:
+				if compass_lookup-heading<-5:
 					print 'comp cond 1 at ',heading,',',incline
 					return 1
 		else:
@@ -471,7 +450,21 @@ def compass_check(use_incline=0,inc_lookups, compass_lookups):
 				print 'comp cond 2 at ',heading
 				return 1
 	print ' '
-	return 0
+	return offset
+
+def compass_check_s(offset, compass_lookup):
+	x1=math.cos(heading)
+	x2=math.cos(math.radians(compass_lookup))
+	y1=math.sin(heading)
+	y2=math.sin(math.radians(compass_lookup))
+	diff=math.atan2((y1-y2),(x1-x2))*180
+	print 'heading off by ',diff
+	if diff>5 and offset>0:
+		return 0
+	elif diff<-5 and offset<0:
+		return 0
+	else:
+		return offset
 
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
@@ -512,13 +505,78 @@ if __name__ == "__main__":
 					it+=1
 					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
-					#car1.speed1(pwm1, offset)
+					car1.speed(pwm1, offset)
 					end1=time.time()
-					if (end1-start)>140 or gps_check(coordinates[1]):
+					if (end1-start)>180 or gps_check(coordinates[1]):
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
-						break			
+						break
+			elif stage==2:
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				#I=0
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					err=follow_edge(alg=1)
+					print 'err ',err
+					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					error=(vel_in-yaw_rate)
+					print 'error ', error
+					offset=pid1.update(error)
+					it+=1
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					car1.speed(pwm1, offset)
+					end1=time.time()
+					if (end1-start)>180 or gps_check(coordinates[1]):
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="turn"
+						break
+			elif stage==97:#control car using new edge follower, use control system for angular velocity
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				#I=0
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					err=follow_edge(alg=2)
+					print 'err ',err
+					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					error=(vel_in-yaw_rate)
+					print 'error ', error
+					offset=pid1.update(error)
+					it+=1
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					if abs(incline-inc_offset-1.1)<.8:
+						if heading>30:
+							if offset>0:
+								offset=0
+						elif heading <20:
+							if offset<0:
+								offset=0
+					car1.speed(pwm1, offset)
+					end1=time.time()
+					if (end1-start)>1500:#gps_check(coordinates[1])
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="turn"
+						break		
 		elif state=='turn':
 			if stage==0:
 				it=0
@@ -542,13 +600,163 @@ if __name__ == "__main__":
 					it+=1
 					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
-					#car1.speed1(pwm1, offset)
+					car1.speed(pwm1, offset)
 					end1=time.time()
 					if (end1-start)>140 or gps_check(coordinates[1]):
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
-						break		
+						break	
+			elif stage==1:
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				substage=0
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
+				#substage 1
+				kept_yaw=yaw
+				turn_wait=5
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' --substage '+str(substage)+'-------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					if substage==0:
+						pwm_sub=pwm1
+						substage=1
+					elif substage==1:#follow edge
+						pwm_sub=pwm1
+						err=follow_edge(alg=1)
+						print 'err ',err
+						vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+						error=(vel_in-yaw_rate)
+						print 'error ', error
+						offset=pid1.update(error)
+						kept_yaw=.95*kept_yaw+.05*yaw
+						c1=rec.wh_det_horizontal(x1=85,x2=5,y1=101,y2=100,xit=-5,yit=-20,er_max=3)
+						print 'kept yaw', kept_yaw
+						print 'horizontal check',c1
+						if c1>14:
+							substage+=1
+							sub2_end=time.time()
+							vel_in=0
+							pid1=PID(P=.8,I=1.7,D=.4)
+					elif substage==2:#go straight for certain amount of time
+						pwm_sub=pwm1
+						err=kept_yaw-yaw
+						print 'err ',err
+						vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+						error=(vel_in-yaw_rate)
+						print 'error ', error
+						offset=pid1.update(error)
+						if incline<.2:
+							pwm_sub=0
+							substage+=1
+							vel_in=0
+							pid1=PID(P=.8,I=1.7,D=.4)
+					elif substage==3:#face compass heading
+						pwm_sub=pwm1
+						err=('''270'''-heading)/90
+						print 'err ',err
+						vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+						error=(vel_in-yaw_rate)
+						print 'error ', error
+						offset=pid1.update(error)
+						if incline<'''.2''':
+							pwm_sub=40
+							substage+=1
+							vel_in=0
+							pid1=PID(P=.8,I=1.7,D=.4)
+					elif substage==4:
+						time.sleep(1)
+						car1.forward()
+						pwm_sub=pwm1
+					it+=1
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					car1.speed(pwm_sub, offset)
+					end1=time.time()
+					if substage==5:
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="drive"
+						global stage
+						stage=2
+						break			
+			elif stage==2:
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				substage=1
+				pid1=PID(P=.8,I=1.7,D=.4)
+				vel_in=0.0
+				#substage 1
+				kept_yaw=yaw
+				turn_wait=5
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' --substage '+str(substage)+'-------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					if substage==0:
+						pwm_sub=pwm1
+						substage=1
+					elif substage==1:
+						pwm_sub=pwm1
+						err=follow_edge(alg=1)
+						print 'err ',err
+						vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+						error=(vel_in-yaw_rate)
+						print 'error ', error
+						offset=pid1.update(error)
+						kept_yaw=.95*kept_yaw+.05*yaw
+						c1=rec.wh_det_horizontal(x1=85,x2=5,y1=101,y2=100,xit=-5,yit=-20,er_max=3)
+						print 'kept yaw', kept_yaw
+						print 'horizontal check',c1
+						if c1>14:
+							substage+=1
+							sub2_end=time.time()
+							vel_in=0
+							pid1=PID(P=.8,I=1.7,D=.4)
+					elif substage==2:#go straight for certain amount of time
+						pwm_sub=pwm1
+						err=kept_yaw-yaw
+						print 'err ',err
+						vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+						error=(vel_in-yaw_rate)
+						print 'error ', error
+						offset=pid1.update(error)
+						if time.time()-sub2_end > turn_wait:
+							pwm_sub=0
+							substage+=1
+							#vel_in=0
+							#pid1=PID(P=.8,I=1.7,D=.4)
+					elif substage==3:#face compass heading
+						offset=0
+						pwm_sub=40
+						car1.spin_left
+						if heading <220:
+							pwm_sub=20
+						if heading <200:
+							substage+=1
+							pwm_sub=pwm1
+					elif substage==4:
+						time.sleep(1)
+						car1.forward()
+						pwm_sub=pwm1
+					it+=1
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					car1.speed(pwm_sub, offset)
+					end1=time.time()
+					if substage==5:
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="drive"
+						global stage
+						stage=2
+						break
 		elif state=='ob_det':
 			pass
 		elif state=='test':
@@ -601,7 +809,11 @@ if __name__ == "__main__":
 					it+=1
 					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
-					#car1.speed1(pwm1, offset)
+					if incline-inc_offset>2:
+						if heading>355 or (heading>0 and heading<100):
+							if offset>0:
+								offset=0
+					car1.speed(pwm1, offset)
 					end1=time.time()
 					if (end1-start)>600:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
