@@ -20,13 +20,13 @@ coordinates=[[3849.669975,7718.3229125],[3849.6589066667,7718.3471666667],[3849.
 gps_position=coordinates[0] #lat,lon
 
 state="test"  #the current state of the robot.
-stage=1  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
+stage=2  #which section of sidewalk the robot is on. To compenstate for changes in environment. 0=engineering building sidewalk, 1= art building sidewalk.... etc
 
 
 object_detect=0 #thread the sonar
 heading =0.0
 incline =0.0
-inc_offset=1.0#set at certain stages
+inc_offset=-2.0#set at certain stages
 yaw_rate=0.0 #radians per sec
 pwm1=0.0
 yaw=0.0
@@ -56,7 +56,9 @@ class recognition:
 				bgr=self.img[y,x]
                                 #if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>85 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
 				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
-				if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>50 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				#if abs(int(bgr[1])-int(bgr[2]))<10 and int(bgr[0])>50 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				#if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>90 and ((bgr[0]*1.10)>(bgr[1]+bgr[2])/2):
+				if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>110 and ((bgr[0]*1.10)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
 		            			test+=1
@@ -84,7 +86,7 @@ class recognition:
 				bgr=self.img[y,x]
 				#if abs(int(bgr[1])-int(bgr[2]))<18 and ((int(bgr[0])+int(bgr[1])+int(bgr[2]))/3)>80:
 				#if abs(int(bgr[1])-int(bgr[2]))<14 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
-				if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>85 and ((bgr[0]*1.25)>(bgr[1]+bgr[2])/2):
+				if abs(int(bgr[1])-int(bgr[2]))<14 and int(bgr[0])>90 and ((bgr[0]*1.10)>(bgr[1]+bgr[2])/2):
 					tot+=1
 					if test<er_max:
 			    			test+=1
@@ -104,7 +106,7 @@ class recognition:
 				bgr=self.img[y,x]
 				print 'g,r differe '+str(abs(int(bgr[1])-int(bgr[2])))+' <  14'
 				print 'b magnitude '+str(int(bgr[0]))+' >  80'
-				print 'b > |g,r|   '+str(((bgr[0]*1.25)))+' > '+str((bgr[1]+bgr[2])/2)
+				print '1*b > |g,r|   '+str(((bgr[0]*1.)))+' > '+str(float(bgr[1]+bgr[2])/2)
 class car:
 	def __init__(self):
 		# Right side motors. Pin definitions for H-bridge control
@@ -135,7 +137,7 @@ class car:
 		GPIO.output(self.left_wheel_dir, GPIO.HIGH)
 	def speed(self, duty=55, offset=0):
 		print 'duty ',duty
-		if duty>75 or duty<-20:
+		if duty>83 or duty<-20:
 			print 'bad pwm'
 			return
 		else:
@@ -210,11 +212,11 @@ def get_location():
 				gps_position[1] = float(data_array1[4])
 		time.sleep(.01)
 
-def follow_most_pixels(xit,yit,inp=.5,alg=0):
+def follow_most_pixels(xit,yit,x1=20, x2=300, y1=150, y2=100, inp=.5,alg=0):
 	sum1=0
 	sum2=0
 	if alg==0:#first algorithim, follow most pixels
-		l1=rec.wh_det(x1=0,x2=320,y1=215,y2=35,xit=xit, yit=yit,er_max=4,slope_en=0)
+		l1=rec.wh_det(x1,x2,y1,y2,xit=xit, yit=yit,er_max=4,slope_en=0)
 		print l1
 		for x in range(0, len(l1)):
 			if x<len(l1)/2:
@@ -291,7 +293,7 @@ def control_distance(xit,yit,slope,b,side=1,dist=40):#side=1, right of sidewalk
 		return error,slope_avg,b_avg
 	else:
 		pass
-def get_direction(t_compass=.2,t_gyro=.2):
+def get_direction(t_compass=.2,t_gyro=.15):
 	data=[26, 0, 254, 255, 33, 0, 159, 253, 217, 0, 244, 255, 255, 255, 0, 0, 1, 0, 232, 3, 88, 1]
 	bno = BNO055.BNO055(rst='P8_4')
 	bno.begin()
@@ -322,7 +324,7 @@ def get_direction(t_compass=.2,t_gyro=.2):
 		x2=math.cos(math.radians(heading))
 		y1=math.sin(h1)
 		y2=math.sin(math.radians(heading))
-		if t_diff<t_compass:
+		if t_diff>t_compass:
 			x3=((t_diff)*(x1)+x2*(t_compass-t_diff))/t_compass
 			y3=((t_diff)*(y1)+y2*(t_compass-t_diff))/t_compass
 		else:
@@ -338,7 +340,7 @@ def get_direction(t_compass=.2,t_gyro=.2):
 		pitch, incline1, yaw1 = bno.read_euler()
 		t_diff=time.time()-end2
 		end2=time.time()
-		if t_diff<t_gyro:
+		if t_diff>t_gyro:
 			incline=((t_diff)*(incline1)+incline*(t_gyro-t_diff))/t_gyro
 			yaw_rate=((t_diff)*(yaw_rate_new*(-180/math.pi))+yaw_rate*(t_gyro-t_diff))/t_gyro
 			yaw=((t_diff)*(yaw1*(-180/math.pi))+yaw*(t_gyro-t_diff))/t_gyro
@@ -346,7 +348,7 @@ def get_direction(t_compass=.2,t_gyro=.2):
 			incline=(incline1)
 			yaw_rate=yaw_rate_new
 			yaw=yaw1
-		time.sleep(.009)
+		time.sleep(.0001)
 		#time.sleep(.09)
 def set_speed():
 	global pwm1
@@ -359,7 +361,7 @@ def set_speed():
 		#print 'F_para ',force_paralell
 		#print 'F_fric ',f_friction
 		time.sleep(.05)
-def gps_check(destination=coordinates[stage+1]):
+def gps_check(destination=coordinates[1]):
 	print 'current pos ',gps_position
 	print 'check pos ',destination
         if math.sqrt((gps_position[0]-destination[0])**2+(gps_position[1]-destination[1])**2)< .0066:#.00641098:#less than two stdev
@@ -382,7 +384,7 @@ def follow_edge(alg=0):
 		for x in range(0,len(l1)):
 			sum1+=l1[x]
 		e1=float(sum1)/len(l1)-.5
-		return e1
+		return -e1
 	elif alg==2:#follow right side using list-- works--
 		#error based on distance and predicted distance
 		#l1=rec.wh_det(x1=200,x2=320,y1=151,y2=110,xit=10,yit=-20,er_max=1)
@@ -468,19 +470,20 @@ def compass_check_s(offset, compass_lookup):
 
 if __name__ == "__main__":
 	#create regocnition, GPS, and car instance.
+	time.sleep(7)
 	rec=recognition()
 	rec.get_img()
 	rec.sample()
 	car1=car()
 	#Thread gps sonar and compass
-	thread.start_new_thread(get_location, ())
+	#thread.start_new_thread(get_location, ())
 	thread.start_new_thread(get_direction, ())
 	thread.start_new_thread(set_speed, ())
 	#while True:
 	#	print yaw_rate
 	#	print heading
 	#	pass
-	time.sleep(5)
+	time.sleep(1)
 	while True:
 		if state=='drive':
 			if stage==0:
@@ -556,18 +559,18 @@ if __name__ == "__main__":
 					#check sonar. if true change behavior and break
 					err=follow_edge(alg=2)
 					print 'err ',err
-					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					vel_in=.9*vel_in+2*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
 					error=(vel_in-yaw_rate)
 					print 'error ', error
 					offset=pid1.update(error)
 					it+=1
 					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
-					if abs(incline-inc_offset-1.1)<.8:
-						if heading>30:
+					if abs(incline-inc_offset-2.4)<1.5:
+						if heading>107 and heading < 360:
 							if offset>0:
 								offset=0
-						elif heading <20:
+						elif heading <97 and heading > 0:
 							if offset<0:
 								offset=0
 					car1.speed(pwm1, offset)
@@ -576,7 +579,44 @@ if __name__ == "__main__":
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
-						break		
+						break
+			elif stage==98:#control car using new edge follower, use control system for angular velocity
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				#I=0
+				#pid1=PID(P=10,I=15,D=0)
+				pid1=PID(P=.7,I=.7,D=.1)
+				vel_in=0.0
+				h5=175
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					err=follow_edge(alg=1)
+					print 'err ',err
+					vel_in=.9*vel_in+1.2*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					error=(vel_in-yaw_rate)
+					print 'error ', error
+					offset=pid1.update(error)
+					it+=1
+					print 'abs incline ', str(incline-inc_offset)
+					print 'yaw ', yaw
+					print 'heading', heading
+					'''if heading>h5+6 and heading < 360:
+						if offset>0:
+							offset=0
+					elif heading <h5-6 and heading > 0:
+						if offset<0:
+							offset=0'''
+					car1.speed(pwm1+5, offset)
+					end1=time.time()
+					if (end1-start)>1500:#gps_check(coordinates[1])
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="turn"
+						break			
 		elif state=='turn':
 			if stage==0:
 				it=0
@@ -593,7 +633,7 @@ if __name__ == "__main__":
 					#check sonar. if true change behavior and break
 					err=follow_edge(alg=2)
 					print 'err ',err
-					vel_in=.9*vel_in+3*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
+					vel_in=.9*vel_in+6.0*err#-.5 to .5, degrees/sec should be around 30 (.1*2*30) at its highest
 					error=(vel_in-yaw_rate)
 					print 'error ', error
 					offset=pid1.update(error)
@@ -602,7 +642,7 @@ if __name__ == "__main__":
 					print 'heading', heading
 					car1.speed(pwm1, offset)
 					end1=time.time()
-					if (end1-start)>140 or gps_check(coordinates[1]):
+					if (end1-start)>14000:# or gps_check(coordinates[1]):
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
@@ -782,7 +822,7 @@ if __name__ == "__main__":
 					print 'heading', heading
 					car1.speed(pwm1, offset)
 					end1=time.time()
-					if (end1-start)>600:#gps_check(coordinates[1])
+					if (end1-start)>2600:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
@@ -809,13 +849,44 @@ if __name__ == "__main__":
 					it+=1
 					print 'abs incline ', str(incline-inc_offset)
 					print 'heading', heading
-					if incline-inc_offset>2:
+					if incline-inc_offset>1:
 						if heading>355 or (heading>0 and heading<100):
 							if offset>0:
 								offset=0
-					car1.speed(pwm1, offset)
+					car1.speed(pwm1-5, offset)
 					end1=time.time()
-					if (end1-start)>600:#gps_check(coordinates[1])
+					if (end1-start)>2600:#gps_check(coordinates[1])
+                                                print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
+						global state
+						state="turn"
+						break
+			elif stage==2:#follow most pixels #innovation building straight path
+				it=0
+				start = time.time()
+				end1=start
+				car1.forward()
+				pid1=PID(P=1.2,I=.7,D=0.0)
+				vel_in=0.0
+				t_inc=.4
+				while True:
+					print '------'+state+' '+str(stage)+' ---iteration '+str(it)+' ---------'
+					rec.get_img()
+					#check sonar. if true change behavior and break
+					err=follow_most_pixels(xit=10,yit=-10,x1=110, x2=210, y1=100, y2=70, inp=.5,alg=0)
+					print 'err ',err
+					t_diff=time.time()-end1
+					vel_in=((t_diff)*(err*30)+vel_in*(t_inc-t_diff))/t_inc
+					end1=time.time()
+					#vel_in=.95*vel_in+2*err#-.5 to .5, degrees/sec should be around 20 (.05*2*20) at its highest
+					print 'yaw_rate ',yaw_rate
+					error=(vel_in-yaw_rate)
+					print 'error ', error
+					offset=pid1.update(error)
+					it+=1
+					print 'abs incline ', str(incline-inc_offset)
+					print 'heading', heading
+					car1.speed(pwm1, offset)
+					if (end1-start)>6600:#gps_check(coordinates[1])
                                                 print 'stage '+str(stage)+' performed at '+str(it/(end1-start))+' hertz'
 						global state
 						state="turn"
